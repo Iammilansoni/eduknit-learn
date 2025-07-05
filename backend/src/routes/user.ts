@@ -4,6 +4,7 @@ import {
   getUserById,
   updateUser,
   deleteUser,
+  createUser,
   updateEnrollmentStatus,
   getUserStats,
   changePassword
@@ -36,6 +37,13 @@ router.get('/', requireAdmin, getAllUsers);
  * @access  Admin
  */
 router.get('/stats', requireAdmin, getUserStats);
+
+/**
+ * @route   POST /api/user
+ * @desc    Create new user (Admin only)
+ * @access  Admin
+ */
+router.post('/', requireAdmin, createUser);
 
 /**
  * @route   GET /api/user/:id

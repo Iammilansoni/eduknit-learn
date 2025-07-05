@@ -226,6 +226,20 @@ export const userAPI = {
     return response.data;
   },
 
+  // Create user (Admin only)
+  createUser: async (userData: {
+    username: string;
+    email: string;
+    password: string;
+    role?: 'admin' | 'user' | 'student' | 'visitor';
+    firstName?: string;
+    lastName?: string;
+    enrollmentStatus?: 'active' | 'inactive' | 'suspended';
+  }): Promise<ApiResponse<User>> => {
+    const response = await api.post('/user', userData);
+    return response.data;
+  },
+
   // Update enrollment status (Admin only)
   updateEnrollmentStatus: async (id: string, status: 'active' | 'inactive' | 'suspended'): Promise<ApiResponse<User>> => {
     const response = await api.patch(`/user/${id}/enrollment-status`, { enrollmentStatus: status });

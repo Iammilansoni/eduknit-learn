@@ -335,3 +335,57 @@ export const changePassword = async (req: AuthenticatedRequest, res: Response) =
     });
   }
 };
+
+// Create new user (Admin only)
+export const createUser = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { username, email, password, role, firstName, lastName, enrollmentStatus } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }]
+    });
+
+    if (existingUser) {
+      res.status(400).json({
+        success: false,
+        message: 'User with this email or username already exists'
+      });
+      return;
+    }
+
+    // Create new user
+    const user = new User({
+      username,
+      email,
+      password, // This will be hashed by the pre-save middleware
+      role: role || 'student',
+      firstName,
+      lastName,
+      enrollmentStatus: enrollmentStatus || 'active',
+      isEmailVerified: true, // Admin created users are auto-verified
+      verificationMessageSeen: true
+    });
+
+    await user.save();
+
+    logger.info(`User created: ${user.email} by admin ${req.user?.id}`);
+
+    // Return user without sensitive data
+    const userResponse = await User.findById(user._id)
+      .select('-password -refreshTokens -emailVerificationToken -passwordResetToken');
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      user: userResponse
+    });
+    return;
+  } catch (error) {
+    logger.error('Create user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};

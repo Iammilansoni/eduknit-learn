@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   Users, 
   UserPlus, 
@@ -60,6 +63,18 @@ const AdminDashboardPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [showEditUserForm, setShowEditUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [newUserData, setNewUserData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    firstName: '',
+    lastName: '',
+    role: 'student' as 'admin' | 'user' | 'student' | 'visitor',
+    enrollmentStatus: 'active' as 'active' | 'inactive' | 'suspended'
+  });
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -101,18 +116,24 @@ const AdminDashboardPage = () => {
     fetchStats();
   }, [fetchUsers, fetchStats]);
 
-  const handleStatusChange = async (userId: string, newStatus: 'active' | 'inactive' | 'suspended') => {
+  const handleStatusChange = async (userId: string, status: 'active' | 'inactive' | 'suspended') => {
     try {
-      const response = await userAPI.updateEnrollmentStatus(userId, newStatus);
+      const response = await userAPI.updateEnrollmentStatus(userId, status);
       if (response.success) {
+        const actionMap = {
+          active: 'activated',
+          inactive: 'deactivated',
+          suspended: 'suspended'
+        };
         toast({
           title: "Success",
-          description: `User status updated to ${newStatus}`,
+          description: `User ${actionMap[status]} successfully`,
         });
-        fetchUsers(); // Refresh the list
-        fetchStats(); // Refresh stats
+        fetchUsers();
+        fetchStats();
       }
     } catch (error: unknown) {
+      console.error('Status change error:', error);
       toast({
         title: "Error",
         description: "Failed to update user status",
@@ -121,7 +142,24 @@ const AdminDashboardPage = () => {
     }
   };
 
+  const getUserId = (user: User): string => {
+    // Handle both id and _id properties as fallback
+    return user.id || (user as User & { _id?: string })._id || '';
+  };
+
   const handleDeleteUser = async (userId: string) => {
+    // Debug logging
+    console.log('Delete user called with ID:', userId);
+    
+    if (!userId || userId === 'undefined') {
+      toast({
+        title: "Error",
+        description: "Invalid user ID",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       return;
     }
@@ -137,9 +175,114 @@ const AdminDashboardPage = () => {
         fetchStats();
       }
     } catch (error: unknown) {
+      console.error('Delete user error:', error);
       toast({
         title: "Error",
         description: "Failed to delete user",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddUser = async () => {
+    try {
+      if (!newUserData.username || !newUserData.email || !newUserData.password) {
+        toast({
+          title: "Error",
+          description: "Username, email, and password are required",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const response = await userAPI.createUser(newUserData);
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "User created successfully",
+        });
+        setShowAddUserForm(false);
+        setNewUserData({
+          username: '',
+          email: '',
+          password: '',
+          firstName: '',
+          lastName: '',
+          role: 'student' as 'admin' | 'user' | 'student' | 'visitor',
+          enrollmentStatus: 'active' as 'active' | 'inactive' | 'suspended'
+        });
+        fetchUsers();
+        fetchStats();
+      }
+    } catch (error: unknown) {
+      console.error('Create user error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create user",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setNewUserData({
+      username: user.username,
+      email: user.email,
+      password: '', // Don't prefill password
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      role: user.role,
+      enrollmentStatus: user.enrollmentStatus
+    });
+    setShowEditUserForm(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+    
+    try {
+      const userId = getUserId(editingUser);
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "Invalid user ID",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Remove password if empty (don't update password)
+      const updateData = { ...newUserData };
+      if (!updateData.password) {
+        delete updateData.password;
+      }
+
+      const response = await userAPI.updateUser(userId, updateData);
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "User updated successfully",
+        });
+        setShowEditUserForm(false);
+        setEditingUser(null);
+        setNewUserData({
+          username: '',
+          email: '',
+          password: '',
+          firstName: '',
+          lastName: '',
+          role: 'student' as 'admin' | 'user' | 'student' | 'visitor',
+          enrollmentStatus: 'active' as 'active' | 'inactive' | 'suspended'
+        });
+        fetchUsers();
+        fetchStats();
+      }
+    } catch (error: unknown) {
+      console.error('Update user error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update user",
         variant: "destructive"
       });
     }
@@ -325,7 +468,7 @@ const AdminDashboardPage = () => {
                     Manage all users in the system
                   </CardDescription>
                 </div>
-                <Button>
+                <Button onClick={() => setShowAddUserForm(true)}>
                   <UserPlus className="h-4 w-4 mr-2" />
                   Add User
                 </Button>
@@ -344,6 +487,9 @@ const AdminDashboardPage = () => {
                   />
                 </div>
               </div>
+
+              {/* Add User Form */}
+              
 
               {/* Users Table */}
               <div className="rounded-md border">
@@ -402,36 +548,36 @@ const AdminDashboardPage = () => {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditUser(user)}>
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit
                                 </DropdownMenuItem>
                                 {user.enrollmentStatus === 'active' && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'inactive')}>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(getUserId(user), 'inactive')}>
                                     <UserX className="h-4 w-4 mr-2" />
                                     Deactivate
                                   </DropdownMenuItem>
                                 )}
                                 {user.enrollmentStatus === 'inactive' && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'active')}>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(getUserId(user), 'active')}>
                                     <UserCheck className="h-4 w-4 mr-2" />
                                     Activate
                                   </DropdownMenuItem>
                                 )}
                                 {user.enrollmentStatus !== 'suspended' && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'suspended')}>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(getUserId(user), 'suspended')}>
                                     <Shield className="h-4 w-4 mr-2" />
                                     Suspend
                                   </DropdownMenuItem>
                                 )}
                                 {user.enrollmentStatus === 'suspended' && (
-                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'active')}>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(getUserId(user), 'active')}>
                                     <UserCheck className="h-4 w-4 mr-2" />
                                     Unsuspend
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem 
-                                  onClick={() => handleDeleteUser(user.id)}
+                                  onClick={() => handleDeleteUser(getUserId(user))}
                                   className="text-red-600"
                                 >
                                   <Trash2 className="h-4 w-4 mr-2" />
@@ -475,8 +621,229 @@ const AdminDashboardPage = () => {
           </Card>
         </div>
       </div>
+
+      {/* Add User Dialog */}
+      <Dialog open={showAddUserForm} onOpenChange={setShowAddUserForm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+            <DialogDescription>
+              Create a new user account. All fields marked with * are required.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="username" className="text-right">
+                Username *
+              </Label>
+              <Input
+                id="username"
+                value={newUserData.username}
+                onChange={(e) => setNewUserData({...newUserData, username: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email *
+              </Label>
+              <Input
+                id="email"
+                type="email"
+                value={newUserData.email}
+                onChange={(e) => setNewUserData({...newUserData, email: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="text-right">
+                Password *
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                value={newUserData.password}
+                onChange={(e) => setNewUserData({...newUserData, password: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="firstName" className="text-right">
+                First Name
+              </Label>
+              <Input
+                id="firstName"
+                value={newUserData.firstName}
+                onChange={(e) => setNewUserData({...newUserData, firstName: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="lastName" className="text-right">
+                Last Name
+              </Label>
+              <Input
+                id="lastName"
+                value={newUserData.lastName}
+                onChange={(e) => setNewUserData({...newUserData, lastName: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">
+                Role
+              </Label>
+              <Select value={newUserData.role} onValueChange={(value: 'admin' | 'user' | 'student' | 'visitor') => setNewUserData({...newUserData, role: value})}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="visitor">Visitor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">
+                Status
+              </Label>
+              <Select value={newUserData.enrollmentStatus} onValueChange={(value: 'active' | 'inactive' | 'suspended') => setNewUserData({...newUserData, enrollmentStatus: value})}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowAddUserForm(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleAddUser}>
+              Create User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditUserForm} onOpenChange={setShowEditUserForm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information. Leave password empty to keep current password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-username" className="text-right">
+                Username *
+              </Label>
+              <Input
+                id="edit-username"
+                value={newUserData.username}
+                onChange={(e) => setNewUserData({...newUserData, username: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-email" className="text-right">
+                Email *
+              </Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={newUserData.email}
+                onChange={(e) => setNewUserData({...newUserData, email: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-password" className="text-right">
+                Password
+              </Label>
+              <Input
+                id="edit-password"
+                type="password"
+                value={newUserData.password}
+                onChange={(e) => setNewUserData({...newUserData, password: e.target.value})}
+                className="col-span-3"
+                placeholder="Leave empty to keep current"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-firstName" className="text-right">
+                First Name
+              </Label>
+              <Input
+                id="edit-firstName"
+                value={newUserData.firstName}
+                onChange={(e) => setNewUserData({...newUserData, firstName: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-lastName" className="text-right">
+                Last Name
+              </Label>
+              <Input
+                id="edit-lastName"
+                value={newUserData.lastName}
+                onChange={(e) => setNewUserData({...newUserData, lastName: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-role" className="text-right">
+                Role
+              </Label>
+              <Select value={newUserData.role} onValueChange={(value: 'admin' | 'user' | 'student' | 'visitor') => setNewUserData({...newUserData, role: value})}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">Student</SelectItem>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="visitor">Visitor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-status" className="text-right">
+                Status
+              </Label>
+              <Select value={newUserData.enrollmentStatus} onValueChange={(value: 'active' | 'inactive' | 'suspended') => setNewUserData({...newUserData, enrollmentStatus: value})}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowEditUserForm(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleUpdateUser}>
+              Update User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
 
-export default AdminDashboardPage; 
+export default AdminDashboardPage;

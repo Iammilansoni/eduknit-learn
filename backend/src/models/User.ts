@@ -131,6 +131,9 @@ const UserSchema = new Schema<IUser>(
         timestamps: true,
         toJSON: {
             transform: function(doc, ret) {
+                ret.id = ret._id;
+                delete ret._id;
+                delete ret.__v;
                 delete ret.password;
                 delete ret.emailVerificationToken;
                 delete ret.emailVerificationExpires;
