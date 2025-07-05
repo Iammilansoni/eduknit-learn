@@ -1,23 +1,24 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
+
 // JWT Configuration
 export const JWT_CONFIG = {
   // Access Token Configuration
   ACCESS_TOKEN: {
     SECRET: process.env.JWT_SECRET!,
     EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1h',
-    ALGORITHM: 'HS256' as jwt.Algorithm,
-    ISSUER: 'eduknit-learn',
-    AUDIENCE: 'eduknit-learn-users',
+    ALGORITHM: 'HS256' as const,
+    ISSUER: process.env.JWT_ISSUER || 'eduknit-learn',
+    AUDIENCE: process.env.JWT_AUDIENCE || 'eduknit-learn-users',
   },
   
   // Refresh Token Configuration
   REFRESH_TOKEN: {
     SECRET: process.env.JWT_REFRESH_SECRET!,
     EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-    ALGORITHM: 'HS256' as jwt.Algorithm,
-    ISSUER: 'eduknit-learn',
-    AUDIENCE: 'eduknit-learn-users',
+    ALGORITHM: 'HS256' as const,
+    ISSUER: process.env.JWT_ISSUER || 'eduknit-learn',
+    AUDIENCE: process.env.JWT_AUDIENCE || 'eduknit-learn-users',
   },
   
   // Cookie Configuration
