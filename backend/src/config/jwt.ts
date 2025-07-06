@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions, VerifyOptions } from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
 // JWT Configuration
@@ -54,46 +54,50 @@ export class JWTUtils {
    * Generate access token
    */
   static generateAccessToken(payload: AccessTokenPayload): string {
-    return jwt.sign(payload, JWT_CONFIG.ACCESS_TOKEN.SECRET, {
+    const options: SignOptions = {
       expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN,
-      algorithm: JWT_CONFIG.ACCESS_TOKEN.ALGORITHM as jwt.Algorithm,
+      algorithm: JWT_CONFIG.ACCESS_TOKEN.ALGORITHM,
       issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
       audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
-    });
+    };
+    return jwt.sign(payload, JWT_CONFIG.ACCESS_TOKEN.SECRET, options);
   }
 
   /**
    * Generate refresh token
    */
   static generateRefreshToken(payload: RefreshTokenPayload): string {
-    return jwt.sign(payload, JWT_CONFIG.REFRESH_TOKEN.SECRET, {
+    const options: SignOptions = {
       expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN,
-      algorithm: JWT_CONFIG.REFRESH_TOKEN.ALGORITHM as jwt.Algorithm,
+      algorithm: JWT_CONFIG.REFRESH_TOKEN.ALGORITHM,
       issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
       audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
-    });
+    };
+    return jwt.sign(payload, JWT_CONFIG.REFRESH_TOKEN.SECRET, options);
   }
 
   /**
    * Verify access token
    */
   static verifyAccessToken(token: string): AccessTokenPayload {
-    return jwt.verify(token, JWT_CONFIG.ACCESS_TOKEN.SECRET, {
-      algorithms: [JWT_CONFIG.ACCESS_TOKEN.ALGORITHM as jwt.Algorithm],
+    const options: VerifyOptions = {
+      algorithms: ['HS256'],
       issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
       audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
-    }) as AccessTokenPayload;
+    };
+    return jwt.verify(token, JWT_CONFIG.ACCESS_TOKEN.SECRET, options) as AccessTokenPayload;
   }
 
   /**
    * Verify refresh token
    */
   static verifyRefreshToken(token: string): RefreshTokenPayload {
-    return jwt.verify(token, JWT_CONFIG.REFRESH_TOKEN.SECRET, {
-      algorithms: [JWT_CONFIG.REFRESH_TOKEN.ALGORITHM as jwt.Algorithm],
+    const options: VerifyOptions = {
+      algorithms: ['HS256'],
       issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
       audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
-    }) as RefreshTokenPayload;
+    };
+    return jwt.verify(token, JWT_CONFIG.REFRESH_TOKEN.SECRET, options) as RefreshTokenPayload;
   }
 
   /**
