@@ -54,26 +54,32 @@ export class JWTUtils {
    * Generate access token
    */
   static generateAccessToken(payload: AccessTokenPayload): string {
-    const options: SignOptions = {
-      expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN,
-      algorithm: JWT_CONFIG.ACCESS_TOKEN.ALGORITHM,
-      issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
-      audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
-    };
-    return jwt.sign(payload, JWT_CONFIG.ACCESS_TOKEN.SECRET, options);
+    return jwt.sign(
+      payload,
+      JWT_CONFIG.ACCESS_TOKEN.SECRET,
+      {
+        expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN,
+        algorithm: 'HS256' as const,
+        issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
+        audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
+      }
+    );
   }
 
   /**
    * Generate refresh token
    */
   static generateRefreshToken(payload: RefreshTokenPayload): string {
-    const options: SignOptions = {
-      expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN,
-      algorithm: JWT_CONFIG.REFRESH_TOKEN.ALGORITHM,
-      issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
-      audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
-    };
-    return jwt.sign(payload, JWT_CONFIG.REFRESH_TOKEN.SECRET, options);
+    return jwt.sign(
+      payload,
+      JWT_CONFIG.REFRESH_TOKEN.SECRET,
+      {
+        expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN,
+        algorithm: 'HS256' as const,
+        issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
+        audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
+      }
+    );
   }
 
   /**
