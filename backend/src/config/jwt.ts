@@ -56,7 +56,7 @@ export class JWTUtils {
   static generateAccessToken(payload: AccessTokenPayload): string {
     return jwt.sign(payload, JWT_CONFIG.ACCESS_TOKEN.SECRET, {
       expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN,
-      algorithm: JWT_CONFIG.ACCESS_TOKEN.ALGORITHM,
+      algorithm: JWT_CONFIG.ACCESS_TOKEN.ALGORITHM as jwt.Algorithm,
       issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
       audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
     });
@@ -68,7 +68,7 @@ export class JWTUtils {
   static generateRefreshToken(payload: RefreshTokenPayload): string {
     return jwt.sign(payload, JWT_CONFIG.REFRESH_TOKEN.SECRET, {
       expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN,
-      algorithm: JWT_CONFIG.REFRESH_TOKEN.ALGORITHM,
+      algorithm: JWT_CONFIG.REFRESH_TOKEN.ALGORITHM as jwt.Algorithm,
       issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
       audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
     });
@@ -79,7 +79,7 @@ export class JWTUtils {
    */
   static verifyAccessToken(token: string): AccessTokenPayload {
     return jwt.verify(token, JWT_CONFIG.ACCESS_TOKEN.SECRET, {
-      algorithms: [JWT_CONFIG.ACCESS_TOKEN.ALGORITHM],
+      algorithms: [JWT_CONFIG.ACCESS_TOKEN.ALGORITHM as jwt.Algorithm],
       issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
       audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
     }) as AccessTokenPayload;
@@ -90,7 +90,7 @@ export class JWTUtils {
    */
   static verifyRefreshToken(token: string): RefreshTokenPayload {
     return jwt.verify(token, JWT_CONFIG.REFRESH_TOKEN.SECRET, {
-      algorithms: [JWT_CONFIG.REFRESH_TOKEN.ALGORITHM],
+      algorithms: [JWT_CONFIG.REFRESH_TOKEN.ALGORITHM as jwt.Algorithm],
       issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
       audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
     }) as RefreshTokenPayload;
