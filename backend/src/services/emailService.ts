@@ -285,6 +285,175 @@ class EmailService {
   }
 
   /**
+   * Send account deletion scheduled notification
+   */
+  async sendAccountDeletionScheduledEmail(
+    email: string, 
+    userName: string, 
+    scheduledDate: Date
+  ): Promise<boolean> {
+    const subject = 'Account Deletion Scheduled - Action Required';
+    
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5;">
+        <div style="background: #dc3545; padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 24px;">Account Deletion Scheduled</h1>
+        </div>
+        
+        <div style="background: white; padding: 30px;">
+          <h2 style="color: #333; margin-top: 0;">Hello ${userName},</h2>
+          
+          <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+            Your account deletion has been scheduled as requested. Here are the important details:
+          </p>
+          
+          <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="color: #856404; margin-top: 0;">⚠️ Important Information</h3>
+            <ul style="color: #856404;">
+              <li><strong>Scheduled deletion date:</strong> ${scheduledDate.toLocaleDateString()} at ${scheduledDate.toLocaleTimeString()}</li>
+              <li><strong>Grace period:</strong> 30 days from request</li>
+              <li><strong>Status:</strong> You can cancel this request anytime before the deletion date</li>
+            </ul>
+          </div>
+          
+          <p style="color: #666; line-height: 1.6;">
+            <strong>What happens next:</strong>
+          </p>
+          <ul style="color: #666; line-height: 1.6;">
+            <li>Your account will remain active during the 30-day grace period</li>
+            <li>You can continue using all features normally</li>
+            <li>You can cancel the deletion request at any time from your dashboard</li>
+            <li>After 30 days, your account and all data will be permanently deleted</li>
+          </ul>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL}/dashboard/privacy-security" 
+               style="background: #dc3545; 
+                      color: white; 
+                      padding: 12px 30px; 
+                      text-decoration: none; 
+                      border-radius: 5px; 
+                      display: inline-block;
+                      font-weight: bold;">
+              Cancel Deletion Request
+            </a>
+          </div>
+          
+          <p style="color: #999; font-size: 14px; margin-top: 30px;">
+            If you did not request this deletion, please contact our support team immediately.
+          </p>
+        </div>
+        
+        <div style="background: #333; padding: 20px; text-align: center;">
+          <p style="color: #999; margin: 0; font-size: 14px;">
+            © 2024 EduKnit Learn. All rights reserved.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const text = `
+      Account Deletion Scheduled
+      
+      Hello ${userName},
+      
+      Your account deletion has been scheduled as requested.
+      
+      Scheduled deletion date: ${scheduledDate.toLocaleDateString()} at ${scheduledDate.toLocaleTimeString()}
+      Grace period: 30 days from request
+      
+      You can cancel this request anytime before the deletion date by visiting:
+      ${process.env.FRONTEND_URL}/dashboard/privacy-security
+      
+      If you did not request this deletion, please contact our support team immediately.
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+    });
+  }
+
+  /**
+   * Send account deletion cancelled notification
+   */
+  async sendAccountDeletionCancelledEmail(
+    email: string, 
+    userName: string
+  ): Promise<boolean> {
+    const subject = 'Account Deletion Cancelled';
+    
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5;">
+        <div style="background: #28a745; padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 24px;">Account Deletion Cancelled</h1>
+        </div>
+        
+        <div style="background: white; padding: 30px;">
+          <h2 style="color: #333; margin-top: 0;">Hello ${userName},</h2>
+          
+          <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+            Good news! Your account deletion request has been successfully cancelled.
+          </p>
+          
+          <div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 5px; margin: 20px 0;">
+            <h3 style="color: #155724; margin-top: 0;">✅ Account Status</h3>
+            <p style="color: #155724; margin: 0;">
+              Your account is now safe and will continue to remain active. All your data and settings have been preserved.
+            </p>
+          </div>
+          
+          <p style="color: #666; line-height: 1.6;">
+            You can continue using EduKnit Learn as normal. Thank you for staying with us!
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.FRONTEND_URL}/dashboard" 
+               style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                      color: white; 
+                      padding: 12px 30px; 
+                      text-decoration: none; 
+                      border-radius: 5px; 
+                      display: inline-block;
+                      font-weight: bold;">
+              Go to Dashboard
+            </a>
+          </div>
+        </div>
+        
+        <div style="background: #333; padding: 20px; text-align: center;">
+          <p style="color: #999; margin: 0; font-size: 14px;">
+            © 2024 EduKnit Learn. All rights reserved.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const text = `
+      Account Deletion Cancelled
+      
+      Hello ${userName},
+      
+      Good news! Your account deletion request has been successfully cancelled.
+      
+      Your account is now safe and will continue to remain active. All your data and settings have been preserved.
+      
+      You can continue using EduKnit Learn as normal. Thank you for staying with us!
+      
+      Visit your dashboard: ${process.env.FRONTEND_URL}/dashboard
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject,
+      html,
+      text,
+    });
+  }
+
+  /**
    * Test email service
    */
   async testConnection(): Promise<boolean> {

@@ -35,7 +35,7 @@ import DecisionMakingPage from "./pages/programs/DecisionMakingPage";
 // Dashboard Pages
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import StudentDashboardPage from "./pages/StudentDashboardPage";
-import StudentProfilePage from "./pages/StudentProfilePage";
+import StudentProfilePage from "./pages/StudentProfilePageNew";
 import StudentAnalyticsPage from "./pages/StudentAnalyticsPage";
 import VisitorPage from "./pages/VisitorPage";
 import NotAuthorizedPage from "./pages/NotAuthorizedPage";
@@ -50,7 +50,12 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <AuthProvider>
           <Routes>
             {/* Public Routes */}

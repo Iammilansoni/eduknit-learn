@@ -14,9 +14,11 @@ import cors from 'cors';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/user';
 import studentRoutes from './routes/student';
+import privacyRoutes from './routes/privacy';
 import healthRoutes from './routes/health';
 import swaggerUi from 'swagger-ui-express';
 import { specs } from './config/swagger';
+import ScheduledJobsService from './services/scheduledJobsService';
 
 dotenv.config();
 
@@ -24,6 +26,9 @@ const app = express();
 
 // Connect to database
 connectDB();
+
+// Initialize scheduled jobs for automated tasks
+ScheduledJobsService.initialize();
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -94,6 +99,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/privacy', privacyRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

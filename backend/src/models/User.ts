@@ -32,6 +32,18 @@ export interface IUser extends Document {
     loginAttempts: number;
     lockUntil?: Date;
     refreshTokens: string[];
+    // Privacy and visibility settings
+    profileVisibility: 'public' | 'private' | 'contacts_only';
+    dataRetentionConsent: boolean;
+    marketingConsent: boolean;
+    // Account deletion tracking
+    deletionRequested: boolean;
+    deletionRequestedAt?: Date;
+    deletionScheduledFor?: Date;
+    deletionReason?: string;
+    isDeleted: boolean;
+    deletedAt?: Date;
+    deletedBy?: string; // admin user ID who approved deletion
     createdAt: Date;
     updatedAt: Date;
     isLocked(): boolean;
@@ -125,21 +137,60 @@ const UserSchema = new Schema<IUser>(
         lockUntil: Date,
         refreshTokens: [{
             type: String
-        }]
+        }],
+        // Privacy and visibility settings
+        profileVisibility: {
+            type: String,
+            enum: ['public', 'private', 'contacts_only'],
+            default: 'public'
+        },
+        dataRetentionConsent: {
+            type: Boolean,
+            default: true
+        },
+        marketingConsent: {
+            type: Boolean,
+            default: false
+        },
+        // Account deletion tracking
+        deletionRequested: {
+            type: Boolean,
+            default: false
+        },
+        deletionRequestedAt: {
+            type: Date
+        },
+        deletionScheduledFor: {
+            type: Date
+        },
+        deletionReason: {
+            type: String,
+            maxlength: 500
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false
+        },
+        deletedAt: {
+            type: Date
+        },
+        deletedBy: {
+            type: String // Admin user ID who approved deletion
+        }
     },
     { 
         timestamps: true,
         toJSON: {
             transform: function(doc, ret) {
                 ret.id = ret._id;
-                delete ret._id;
-                delete ret.__v;
-                delete ret.password;
-                delete ret.emailVerificationToken;
-                delete ret.emailVerificationExpires;
-                delete ret.passwordResetToken;
-                delete ret.passwordResetExpires;
-                delete ret.refreshTokens;
+                delete (ret as any)._id;
+                delete (ret as any).__v;
+                delete (ret as any).password;
+                delete (ret as any).emailVerificationToken;
+                delete (ret as any).emailVerificationExpires;
+                delete (ret as any).passwordResetToken;
+                delete (ret as any).passwordResetExpires;
+                delete (ret as any).refreshTokens;
                 return ret;
             }
         }
@@ -147,7 +198,6 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Index for better query performance
-UserSchema.index({ email: 1 });
 UserSchema.index({ username: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ enrollmentStatus: 1 });

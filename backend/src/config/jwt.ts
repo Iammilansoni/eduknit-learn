@@ -6,7 +6,7 @@ export const JWT_CONFIG = {
   // Access Token Configuration
   ACCESS_TOKEN: {
     SECRET: process.env.JWT_SECRET!,
-    EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1h',
+    EXPIRES_IN: (process.env.JWT_EXPIRES_IN || '1h') as string,
     ALGORITHM: 'HS256' as const,
     ISSUER: process.env.JWT_ISSUER || 'eduknit-learn',
     AUDIENCE: process.env.JWT_AUDIENCE || 'eduknit-learn-users',
@@ -15,7 +15,7 @@ export const JWT_CONFIG = {
   // Refresh Token Configuration
   REFRESH_TOKEN: {
     SECRET: process.env.JWT_REFRESH_SECRET!,
-    EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    EXPIRES_IN: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as string,
     ALGORITHM: 'HS256' as const,
     ISSUER: process.env.JWT_ISSUER || 'eduknit-learn',
     AUDIENCE: process.env.JWT_AUDIENCE || 'eduknit-learn-users',
@@ -58,8 +58,8 @@ export class JWTUtils {
       payload,
       JWT_CONFIG.ACCESS_TOKEN.SECRET,
       {
-        expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN,
-        algorithm: 'HS256' as const,
+        expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN as any,
+        algorithm: 'HS256',
         issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
         audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
       }
@@ -74,8 +74,8 @@ export class JWTUtils {
       payload,
       JWT_CONFIG.REFRESH_TOKEN.SECRET,
       {
-        expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN,
-        algorithm: 'HS256' as const,
+        expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN as any,
+        algorithm: 'HS256',
         issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
         audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
       }
