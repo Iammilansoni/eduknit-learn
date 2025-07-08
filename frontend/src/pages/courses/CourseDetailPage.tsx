@@ -10,6 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { BookOpen, Calendar, Clock, Play, ArrowLeft, Users, FileText, Check } from 'lucide-react';
 import CourseModule from '@/components/courses/CourseModule';
+import EnrollButton from '@/components/courses/EnrollButton';
 
 const CourseDetailPage: React.FC = () => {
   const { courseId } = useParams();
@@ -1049,9 +1050,16 @@ const CourseDetailPage: React.FC = () => {
                 </div>
                 
                 <div className="flex mt-6 gap-4">
-                  <Button className="flex-1 bg-eduOrange-500 hover:bg-eduOrange-600">
-                    <Play className="mr-2 h-4 w-4" /> Continue Learning
-                  </Button>
+                  <EnrollButton 
+                    courseId={courseId || "1"} 
+                    courseName={course.title}
+                    onEnrollmentChange={(enrolled, userCourse) => {
+                      if (enrolled && userCourse) {
+                        console.log('Enrollment successful:', userCourse);
+                        // Could update local state or redirect to course content
+                      }
+                    }}
+                  />
                   <Button variant="outline" className="flex-1 border-white/20 hover:bg-white/10">
                     <FileText className="mr-2 h-4 w-4" /> Download Syllabus
                   </Button>

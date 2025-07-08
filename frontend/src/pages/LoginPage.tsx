@@ -40,14 +40,16 @@ const LoginPage = () => {
   
   // Check if user is already logged in
   useEffect(() => {
+    console.log('LoginPage useEffect - user:', user, 'loading:', loading);
     if (user && !loading) {
+      console.log('User detected, redirecting based on role:', user.role);
       // Redirect based on role
       if (user.role === 'admin') {
-        navigate('/admin/dashboard');
+        navigate('/admin/dashboard', { replace: true });
       } else if (user.role === 'user' || user.role === 'student') {
-        navigate('/student-dashboard');
+        navigate('/student-dashboard', { replace: true });
       } else {
-        navigate('/visitor');
+        navigate('/visitor', { replace: true });
       }
     }
   }, [user, loading, navigate]);
@@ -66,20 +68,24 @@ const LoginPage = () => {
       setIsSubmitting(true);
       setShowRegisterMessage(false); // Reset the message on new attempt
       setShowSuccessMessage(false); // Reset success message
+      
+      console.log('Attempting login with:', data.email);
       await login({
         email: data.email,
         password: data.password,
       });
       
-      // Login successful - show success message and redirect based on role
+      console.log('Login successful, user state should be updated');
+      
+      // Login successful - show success message and redirect immediately
       setShowSuccessMessage(true);
+      
+      // Use a shorter timeout and force redirect
       setTimeout(() => {
-        // The useEffect will handle the role-based redirect
-        // But as fallback, redirect to student dashboard
-        if (!user) {
-          navigate('/student-dashboard');
-        }
-      }, 1500);
+        console.log('Timeout redirect triggered');
+        // Force redirect to student dashboard (the useEffect should also handle this)
+        navigate('/student-dashboard', { replace: true });
+      }, 1000);
     } catch (error: unknown) {
       console.error('Login error:', error);
       

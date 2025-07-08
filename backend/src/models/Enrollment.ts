@@ -7,7 +7,7 @@ export interface IEnrollment extends Document {
     studentId: Schema.Types.ObjectId;
     programmeId: Schema.Types.ObjectId;
     enrollmentDate: Date;
-    status: 'ACTIVE' | 'COMPLETED' | 'PAUSED' | 'CANCELLED' | 'EXPIRED';
+    status: 'ENROLLED' | 'ACTIVE' | 'COMPLETED' | 'PAUSED' | 'CANCELLED' | 'EXPIRED';
     progress: {
         completedModules: Schema.Types.ObjectId[];
         completedLessons: Schema.Types.ObjectId[];
@@ -55,8 +55,8 @@ const EnrollmentSchema = new Schema<IEnrollment>(
         },
         status: {
             type: String,
-            enum: ['ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED', 'EXPIRED'],
-            default: 'ACTIVE',
+            enum: ['ENROLLED', 'ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED', 'EXPIRED'],
+            default: 'ENROLLED',
             index: true
         },
         progress: {

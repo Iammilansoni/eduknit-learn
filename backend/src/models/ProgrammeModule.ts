@@ -12,6 +12,7 @@ export interface IProgrammeModule extends Document {
     estimatedDuration: number; // in minutes
     totalLessons: number;
     prerequisites: Schema.Types.ObjectId[]; // Other module IDs
+    dueDate?: Date;
     learningObjectives: string[];
     isActive: boolean;
     createdAt: Date;
@@ -62,6 +63,10 @@ const ProgrammeModuleSchema = new Schema<IProgrammeModule>(
             type: Schema.Types.ObjectId,
             ref: 'ProgrammeModule'
         }],
+        dueDate: {
+            type: Date,
+            index: true
+        },
         learningObjectives: [{
             type: String,
             trim: true,

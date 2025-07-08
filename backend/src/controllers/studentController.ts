@@ -918,3 +918,55 @@ export const getEnrolledPrograms = async (req: AuthenticatedRequest, res: Respon
     serverError(res, 'Failed to retrieve enrolled programs');
   }
 };
+
+/**
+ * Enroll in a program (Enroll Now logic)
+ * @route POST /api/student/enroll
+ * @body programmeId: string
+ */
+export const enrollInProgram = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = req.user?.id;
+    const { programmeId } = req.body;
+    if (!studentId || !programmeId) {
+      validationError(res, 'Student ID and programmeId are required');
+      return;
+    }
+    // Check if already enrolled
+    const existing = await Enrollment.findOne({ studentId, programmeId });
+    if (existing) {
+      conflict(res, 'Already enrolled in this program');
+      return;
+    }
+    // Check if programme exists
+    const programme = await Programme.findById(programmeId);
+    if (!programme) {
+      notFound(res, 'Programme not found');
+      return;
+    }
+    // Create new enrollment
+    const enrollment = new Enrollment({
+      studentId,
+      programmeId,
+      enrollmentDate: new Date(),
+      status: 'ENROLLED',
+      progress: {
+        completedModules: [],
+        completedLessons: [],
+        totalProgress: 0,
+        lastActivityDate: new Date(),
+        timeSpent: 0
+      },
+      paymentStatus: 'PENDING',
+      certificateIssued: false,
+      metadata: { enrollmentSource: 'DIRECT' },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+    await enrollment.save();
+    created(res, enrollment, 'Enrolled successfully');
+  } catch (error) {
+    logger.error('Enroll in program error:', error);
+    serverError(res, 'Failed to enroll in program');
+  }
+};

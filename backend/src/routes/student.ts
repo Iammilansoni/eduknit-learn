@@ -12,7 +12,8 @@ import {
   getEnrolledPrograms,
   updateLearningActivity,
   getStudentAnalytics,
-  upload
+  upload,
+  enrollInProgram
 } from '../controllers/studentController';
 import { 
   createJWTMiddleware, 
@@ -130,5 +131,13 @@ router.post('/activity', requireStudent, [
  * @access  Student only
  */
 router.get('/analytics', requireStudent, getStudentAnalytics);
+
+/**
+ * @route   POST /api/student/enroll
+ * @desc    Enroll in a program (Enroll Now logic)
+ * @access  Student only
+ * @body    programmeId: string
+ */
+router.post('/enroll', requireStudent, body('programmeId').notEmpty().isString(), enrollInProgram);
 
 export default router;

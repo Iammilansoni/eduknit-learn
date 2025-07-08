@@ -15,7 +15,11 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/user';
 import studentRoutes from './routes/student';
 import privacyRoutes from './routes/privacy';
+import progressRoutes from './routes/progress';
 import healthRoutes from './routes/health';
+import courseContentRoutes from './routes/courseContent';
+import integrationRoutes from './routes/integrations';
+import analyticsRoutes from './routes/analytics';
 import swaggerUi from 'swagger-ui-express';
 import { specs } from './config/swagger';
 import ScheduledJobsService from './services/scheduledJobsService';
@@ -100,6 +104,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/privacy', privacyRoutes);
+app.use('/api/progress', progressRoutes);
+app.use('/api/integrations', integrationRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api', courseContentRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

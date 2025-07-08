@@ -1,20 +1,24 @@
 import React, { useState, ReactNode } from "react";
 import axios from "axios";
-import api, { ApiResponse, User, RegisterData, LoginCredentials } from "../services/api";
 import { useToast } from "../hooks/use-toast";
 import { AuthContext } from "./AuthContextContext";
+import { authApi, type AuthUser, type LoginCredentials, type RegisterData } from "../services/authApi";
 
 export interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   register: (formData: RegisterData) => Promise<void>;
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => Promise<void>;
-  // ...other methods...
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  resendEmailVerification: (email: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const toast = useToast();
@@ -67,27 +71,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        // Then verify with backend - backend will check HTTP-only cookies
-        const response = await api.get<ApiResponse<User>>("/auth/me");
-        if (response.data.success && response.data.data) {
-          setUser(response.data.data);
-          localStorage.setItem("user", JSON.stringify(response.data.data));
-        } else {
-          // Not authenticated, clear any stored user data
-          setUser(null);
-          localStorage.removeItem("user");
-        }
+        // Then verify with backend using our authApi
+        const userData = await authApi.getCurrentUser();
+        setUser(userData);
+        localStorage.setItem("user", JSON.stringify(userData));
       } catch (error) {
-        // If 401, user is simply not authenticated - this is normal
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          // Silently handle - user is not logged in
-          localStorage.removeItem("user");
-          setUser(null);
-        } else {
-          console.error("Auth check error:", error);
-          localStorage.removeItem("user");
-          setUser(null);
-        }
+        // If error, user is not authenticated - this is normal
+        localStorage.removeItem("user");
+        setUser(null);
       } finally {
         setLoading(false);
         setAuthChecked(true);
@@ -100,45 +91,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Login function
   const login = async (credentials: LoginCredentials) => {
     try {
+      console.log('AuthContext login called with:', credentials.email);
       setLoading(true);
 
-      const response = await api.post<ApiResponse<User>>("/auth/login", credentials);
+      const userData = await authApi.login(credentials);
+      console.log('Login API response:', userData);
+      
+      // The API now returns the user object directly
+      setUser(userData as AuthUser);
+      localStorage.setItem("user", JSON.stringify(userData));
+      setAuthChecked(true); // Mark auth as checked since we just logged in
+      
+      console.log('User state updated to:', userData);
 
-      if (response.data.success && response.data.data) {
-        setUser(response.data.data);
-        localStorage.setItem("user", JSON.stringify(response.data.data));
-        setAuthChecked(true); // Mark auth as checked since we just logged in
-        
-        // Note: Tokens are handled via HTTP-only cookies by the backend
-        // No need to store tokens in localStorage for security
+      toast.toast({
+        title: "Login Successful!",
+        description: "Welcome back! Redirecting to your dashboard...",
+      });
 
-        toast.toast({
-          title: "Login Successful!",
-          description: "Welcome back! Redirecting to your dashboard...",
-        });
-
-        // Note: Navigation should be handled by the calling component
-        // Return success to let the component handle navigation
-        return; // Successfully completed - don't throw error
-      } else {
-        throw new Error(response.data.message || "Login failed");
-      }
+      return; // Successfully completed
     } catch (error) {
       console.error("Login error:", error);
       let errorMessage = "Login failed";
       
-      if (axios.isAxiosError(error)) {
-        if (error.response?.data) {
-          const data = error.response.data as Record<string, unknown>;
-          if (typeof data.error === 'object' && data.error && 'message' in data.error) {
-            errorMessage = String(data.error.message);
-          } else if (typeof data.message === 'string') {
-            errorMessage = data.message;
-          }
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-      } else if (error instanceof Error) {
+      if (error instanceof Error) {
         errorMessage = error.message;
       }
       
@@ -149,66 +125,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       throw error;
     } finally {
-      setLoading(false);
+      console.log('Login finally block - setting loading to false');
+      setLoading(false); // Always set loading to false
     }
   };
 
   const register = async (formData: RegisterData): Promise<void> => {
     try {
       setLoading(true);
-      const res = await api.post<ApiResponse<User>>("/auth/register", formData);
+      await authApi.register(formData);
 
-      if (res.data.success) {
-        // Registration was successful - do not auto-login until email is verified
-        // Clear any existing user data
-        setUser(null);
-        localStorage.removeItem("user");
-        
-        toast.toast({
-          title: "Registration Successful!",
-          description: res.data.message || "Please check your email to verify your account.",
-        });
-
-        // Note: Navigation should be handled by the calling component
-        // Return success to let the component handle navigation
-      } else {
-        throw new Error(res.data.message || "Registration failed");
-      }
-    } catch (err) {
+      // Registration was successful - do not auto-login until email is verified
+      setUser(null);
+      localStorage.removeItem("user");
+      
+      toast.toast({
+        title: "Registration Successful!",
+        description: "Please check your email to verify your account.",
+      });
+    } catch (error) {
       let message = "Registration failed.";
       let isEmailConflict = false;
       
-      if (axios.isAxiosError(err)) {
-        // Check if this is an email conflict (409 status)
-        isEmailConflict = err.response?.status === 409;
-        
-        if (err.response?.data) {
-          const data = err.response.data as Record<string, unknown>;
-          // Check for error message in different possible locations
-          if (typeof data.error === 'object' && data.error && 'message' in data.error) {
-            message = String(data.error.message);
-          } else if (typeof data.message === 'string') {
-            message = data.message;
-          } else if (Array.isArray(data.errors)) {
-            message = data.errors.map((e: unknown) => 
-              typeof e === 'object' && e && 'message' in e ? String(e.message) : String(e)
-            ).join(', ');
-          }
-        } else if (err.message) {
-          message = err.message;
+      if (axios.isAxiosError(error)) {
+        isEmailConflict = error.response?.status === 409;
+        if (error.message) {
+          message = error.message;
         }
-      } else if (err instanceof Error) {
-        message = err.message;
+      } else if (error instanceof Error) {
+        message = error.message;
       }
       
       // Only show toast for non-conflict errors (RegisterPage handles conflict UI)
       if (!isEmailConflict) {
-        // Log the full error to help with debugging
-        console.error("Registration error details:", err);
-        if (axios.isAxiosError(err) && err.response?.data) {
-          console.error("Response data:", err.response.data);
-          console.error("Error object:", err.response.data.error);
-        }
+        console.error("Registration error details:", error);
         
         toast.toast({ 
           title: "Registration Error", 
@@ -217,7 +167,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
-      throw err; // Re-throw so calling component can handle it
+      throw error; // Re-throw so calling component can handle it
     } finally {
       setLoading(false);
     }
@@ -226,22 +176,122 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Logout function
   const logout = async () => {
     try {
-      await api.post("/auth/logout");
+      await authApi.logout();
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
       setUser(null);
-      setAuthChecked(true); // Mark as checked so we don't trigger auth check again
+      setAuthChecked(true);
       localStorage.removeItem("user");
-      // HTTP-only cookies are cleared by the backend
 
       toast.toast({
         title: "Logged Out",
         description: "You have been logged out successfully.",
       });
+    }
+  };
 
-      // Note: Navigation should be handled by the calling component
-      // Components should handle their own navigation after logout
+  // Forgot password
+  const forgotPassword = async (email: string) => {
+    try {
+      await authApi.forgotPassword({ email });
+      toast.toast({
+        title: "Reset Email Sent",
+        description: "Please check your email for password reset instructions.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to send reset email";
+      toast.toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // Reset password
+  const resetPassword = async (token: string, password: string) => {
+    try {
+      await authApi.resetPassword({ token, password });
+      toast.toast({
+        title: "Password Reset Successful",
+        description: "Your password has been reset. You can now log in with your new password.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reset password";
+      toast.toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // Verify email
+  const verifyEmail = async (token: string) => {
+    try {
+      await authApi.verifyEmail(token);
+      // After successful verification, get updated user data
+      try {
+        const userData = await authApi.getCurrentUser();
+        setUser(userData);
+        localStorage.setItem("user", JSON.stringify(userData));
+      } catch (error) {
+        console.error("Error getting user after verification:", error);
+      }
+      
+      toast.toast({
+        title: "Email Verified",
+        description: "Your email has been verified successfully!",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Email verification failed";
+      toast.toast({
+        title: "Verification Failed",
+        description: message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // Resend email verification
+  const resendEmailVerification = async (email: string) => {
+    try {
+      await authApi.resendEmailVerification(email);
+      toast.toast({
+        title: "Verification Email Sent",
+        description: "Please check your email for verification instructions.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to resend verification email";
+      toast.toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
+  // Change password
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
+      toast.toast({
+        title: "Password Changed",
+        description: "Your password has been changed successfully.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to change password";
+      toast.toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw error;
     }
   };
 
@@ -251,6 +301,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     register,
     login,
     logout,
+    forgotPassword,
+    resetPassword,
+    verifyEmail,
+    resendEmailVerification,
+    changePassword,
   };
 
   return (

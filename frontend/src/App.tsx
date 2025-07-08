@@ -37,6 +37,8 @@ import AdminDashboardPage from "./pages/AdminDashboardPage";
 import StudentDashboardPage from "./pages/StudentDashboardPage";
 import StudentProfilePage from "./pages/StudentProfilePageNew";
 import StudentAnalyticsPage from "./pages/StudentAnalyticsPage";
+import MyCoursesPage from "./pages/courses/MyCoursesPage";
+import IntegrationSettingsPage from "./pages/IntegrationSettingsPage";
 import VisitorPage from "./pages/VisitorPage";
 import NotAuthorizedPage from "./pages/NotAuthorizedPage";
 import EmailVerificationRequired from "./pages/EmailVerificationRequired";
@@ -111,6 +113,22 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['student', 'user']}>
                   <StudentAnalyticsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student/my-courses" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <MyCoursesPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings/integrations" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <IntegrationSettingsPage />
                 </ProtectedRoute>
               } 
             />

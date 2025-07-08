@@ -6,12 +6,17 @@ import CourseList from '@/components/dashboard/courses/CourseList';
 import NotificationList from '@/components/dashboard/notifications/NotificationList';
 import DashboardCalendar from '@/components/dashboard/calendar/DashboardCalendar';
 import StatisticsCards from '@/components/dashboard/statistics/StatisticsCards';
+import DiscordWidget from '@/components/integrations/DiscordWidget';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Book, FileText, Play, BarChart, Video, User, Settings2 } from 'lucide-react';
+import { Book, FileText, Play, BarChart, Video, User, Settings2, Link2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Award, CalendarIcon, Clock } from 'lucide-react';
+import ProgressChart from '@/components/dashboard/analytics/ProgressChart';
+import StreakCounter from '@/components/dashboard/analytics/StreakCounter';
+import PointsAndLevel from '@/components/dashboard/analytics/PointsAndLevel';
+import CategoryPerformanceChart from '@/components/dashboard/analytics/CategoryPerformanceChart';
 
 const StudentDashboardPage = () => {
   const [date, setDate] = React.useState<Date | undefined>(new Date());
@@ -211,14 +216,10 @@ const StudentDashboardPage = () => {
         </div>
 
         {/* Overview Cards */}
-        <DashboardOverviewCards
-          enrolledCourses={enrolledCourses}
-          upcomingDeadlines={upcomingDeadlines}
-          liveSessionsToday={liveSessionsToday}
-        />
+        <DashboardOverviewCards />
 
         {/* Quick Actions Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {/* Profile Management Card */}
           <Card className="border-l-4 border-l-eduBlue-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/student/profile')}>
             <CardHeader className="pb-3">
@@ -283,6 +284,30 @@ const StudentDashboardPage = () => {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Integration Settings Card */}
+          <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/settings/integrations')}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Link2 className="h-5 w-5 text-purple-500" />
+                  <CardTitle className="text-lg">Integrations</CardTitle>
+                </div>
+                <Settings2 className="h-4 w-4 text-gray-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="mb-3">
+                Connect Discord, Slack, and other platforms to enhance your learning experience.
+              </CardDescription>
+              <Button variant="outline" size="sm" className="w-full" onClick={(e) => {
+                e.stopPropagation();
+                navigate('/settings/integrations');
+              }}>
+                Manage Integrations
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Course Content */}
@@ -292,6 +317,7 @@ const StudentDashboardPage = () => {
             <Tabs defaultValue="my-courses" className="w-full">
               <TabsList className="mb-6">
                 <TabsTrigger value="my-courses">My Courses</TabsTrigger>
+                <TabsTrigger value="analytics">Analytics</TabsTrigger>
                 <TabsTrigger value="deadlines">Upcoming Deadlines</TabsTrigger>
                 <TabsTrigger value="live-sessions">Live Sessions</TabsTrigger>
                 <TabsTrigger value="achievements">Achievements</TabsTrigger>
@@ -309,6 +335,17 @@ const StudentDashboardPage = () => {
                 >
                   Explore More Courses
                 </Button>
+              </TabsContent>
+              
+              <TabsContent value="analytics" className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  <StreakCounter />
+                  <PointsAndLevel />
+                </div>
+                <div className="grid grid-cols-1 gap-6">
+                  <ProgressChart />
+                  <CategoryPerformanceChart />
+                </div>
               </TabsContent>
               
               <TabsContent value="deadlines">
@@ -405,10 +442,13 @@ const StudentDashboardPage = () => {
             <StatisticsCards />
           </div>
           
-          {/* Right column - Calendar and Notifications */}
+          {/* Right column - Calendar, Notifications, and Discord Widget */}
           <div className="space-y-6">
             <DashboardCalendar date={date} onSelect={setDate} />
             <NotificationList notifications={notifications} />
+            
+            {/* Discord Community Widget */}
+            <DiscordWidget />
             
             {/* Quick Links */}
             <Card>
