@@ -153,7 +153,7 @@ UserSchema.index({ role: 1 });
 UserSchema.index({ enrollmentStatus: 1 });
 
 // Virtual for full name
-UserSchema.virtual('fullName').get(function() {
+UserSchema.virtual('fullName').get(function(this: IUser) {
     if (this.firstName && this.lastName) {
         return `${this.firstName} ${this.lastName}`;
     }

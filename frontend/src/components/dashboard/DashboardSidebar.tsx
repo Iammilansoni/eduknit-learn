@@ -11,13 +11,15 @@ import {
   Settings,
   LogOut,
   MenuIcon,
-  X
+  X,
+  User
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import ProfileAvatar from '@/components/common/ProfileAvatar';
 
 interface SidebarLinkProps {
   to: string;
@@ -58,6 +60,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
     { to: '/student-dashboard/calendar', icon: Calendar, label: 'Calendar' },
     { to: '/student-dashboard/assignments', icon: ClipboardCheck, label: 'Assignments' },
     { to: '/student-dashboard/live-sessions', icon: Video, label: 'Live Sessions' },
+    { to: '/student/profile', icon: User, label: 'My Profile' },
     { to: '/student-dashboard/help', icon: HelpCircle, label: 'Help & Support' },
   ];
   
@@ -106,12 +109,15 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
         
         {/* User profile */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center space-x-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src="https://i.pravatar.cc/150?img=32" alt="User" />
-            <AvatarFallback>
-              {user?.firstName ? user.firstName.charAt(0) : (user?.username ? user.username.charAt(0).toUpperCase() : 'U')}
-            </AvatarFallback>
-          </Avatar>
+          <ProfileAvatar 
+            currentUser={{
+              firstName: user?.firstName,
+              lastName: user?.lastName,
+              username: user?.username,
+              email: user?.email,
+            }}
+            size="md"
+          />
           <div className="flex flex-col">
             <span className="font-medium text-gray-900 dark:text-white">
               {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username || 'Guest User'}

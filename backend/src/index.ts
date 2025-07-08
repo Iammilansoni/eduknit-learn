@@ -4,6 +4,8 @@ import express, { ErrorRequestHandler } from 'express';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import { connectDB } from './config/db';
 import { configureSecurity } from './middleware/security';
 import logger from './config/logger';
@@ -23,6 +25,16 @@ const app = express();
 // Connect to database
 connectDB();
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'uploads');
+const profilesDir = path.join(uploadsDir, 'profiles');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+if (!fs.existsSync(profilesDir)) {
+  fs.mkdirSync(profilesDir, { recursive: true });
+}
+
 // Security middleware
 configureSecurity(app);
 
@@ -36,13 +48,29 @@ app.use(cookieParser());
 // CORS middleware
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:3000',
   // add prod URL here
 ];
 
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
+
+// Static file serving for uploads with proper CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.header('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.header('Pragma', 'no-cache');
+  res.header('Expires', '0');
+  next();
+}, express.static(path.join(process.cwd(), 'uploads')));
 
 // Logging middleware
 if (process.env.NODE_ENV === 'production') {

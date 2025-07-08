@@ -8,7 +8,7 @@ import DashboardCalendar from '@/components/dashboard/calendar/DashboardCalendar
 import StatisticsCards from '@/components/dashboard/statistics/StatisticsCards';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Book, FileText, Play, BarChart, Video } from 'lucide-react';
+import { Book, FileText, Play, BarChart, Video, User, Settings2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Award, CalendarIcon, Clock } from 'lucide-react';
@@ -216,6 +216,74 @@ const StudentDashboardPage = () => {
           upcomingDeadlines={upcomingDeadlines}
           liveSessionsToday={liveSessionsToday}
         />
+
+        {/* Quick Actions Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          {/* Profile Management Card */}
+          <Card className="border-l-4 border-l-eduBlue-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/student/profile')}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <User className="h-5 w-5 text-eduBlue-500" />
+                  <CardTitle className="text-lg">Profile Management</CardTitle>
+                </div>
+                <Settings2 className="h-4 w-4 text-gray-400" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="mb-3">
+                Update your personal information, manage enrollments, and view your learning analytics.
+              </CardDescription>
+              <Button variant="outline" size="sm" className="w-full" onClick={(e) => {
+                e.stopPropagation();
+                navigate('/student/profile');
+              }}>
+                Manage Profile
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Analytics Card */}
+          <Card className="border-l-4 border-l-eduOrange-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => navigate('/student/analytics')}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <BarChart className="h-5 w-5 text-eduOrange-500" />
+                  <CardTitle className="text-lg">Learning Analytics</CardTitle>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="mb-3">
+                Track your progress, view completion rates, and analyze your learning patterns.
+              </CardDescription>
+              <Button variant="outline" size="sm" className="w-full" onClick={(e) => {
+                e.stopPropagation();
+                navigate('/student/analytics');
+              }}>
+                View Analytics
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Study Tools Card */}
+          <Card className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center space-x-2">
+                <Book className="h-5 w-5 text-green-500" />
+                <CardTitle className="text-lg">Study Tools</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <CardDescription className="mb-3">
+                Access notes, flashcards, and other study materials to enhance your learning.
+              </CardDescription>
+              <Button variant="outline" size="sm" className="w-full">
+                Open Tools
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Course Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

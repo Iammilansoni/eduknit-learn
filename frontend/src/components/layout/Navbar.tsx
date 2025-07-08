@@ -220,7 +220,8 @@ const Navbar = () => {
                     </AvatarFallback>
                   </Avatar>
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border dark:border-gray-700">
-                    <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Profile</Link>
+                    <Link to="/student/profile" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Profile</Link>
+                    <Link to="/student/analytics" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Analytics</Link>
                     <Link to="/settings" className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Settings</Link>
                     <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Logout</button>
                   </div>
@@ -306,11 +307,18 @@ const Navbar = () => {
                   Dashboard
                 </Link>
                 <Link 
-                  to="/profile" 
+                  to="/student/profile" 
                   className="block py-2 text-base font-medium text-gray-700 dark:text-gray-200 hover:text-eduBlue-500 dark:hover:text-eduBlue-400"
                   onClick={toggleMenu}
                 >
                   Profile
+                </Link>
+                <Link 
+                  to="/student/analytics" 
+                  className="block py-2 text-base font-medium text-gray-700 dark:text-gray-200 hover:text-eduBlue-500 dark:hover:text-eduBlue-400"
+                  onClick={toggleMenu}
+                >
+                  Analytics
                 </Link>
                 <button 
                   onClick={() => {handleLogout(); toggleMenu();}}

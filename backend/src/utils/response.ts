@@ -198,4 +198,13 @@ export const authenticationError = ResponseHandler.authenticationError.bind(Resp
 export const authorizationError = ResponseHandler.authorizationError.bind(ResponseHandler);
 export const notFound = ResponseHandler.notFound.bind(ResponseHandler);
 export const conflict = ResponseHandler.conflict.bind(ResponseHandler);
-export const rateLimit = ResponseHandler.rateLimit.bind(ResponseHandler); 
+export const rateLimit = ResponseHandler.rateLimit.bind(ResponseHandler);
+
+// Additional exports for backward compatibility
+export const serverError = (res: Response, message: string = 'Internal server error') => {
+  ResponseHandler.error(res, message, 500, 'INTERNAL_SERVER_ERROR');
+};
+
+export const forbidden = (res: Response, message: string = 'Access forbidden') => {
+  ResponseHandler.error(res, message, 403, 'FORBIDDEN');
+}; 

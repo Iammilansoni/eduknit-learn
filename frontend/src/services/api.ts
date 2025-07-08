@@ -135,6 +135,192 @@ export interface UserUpdateData {
   };
 }
 
+// Type definitions to replace all any types
+export interface StudentProfile {
+  contactInfo?: {
+    phoneNumber?: string;
+    alternateEmail?: string;
+    socialMedia?: {
+      linkedin?: string;
+      twitter?: string;
+      github?: string;
+      portfolio?: string;
+    };
+  };
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+    timezone?: string;
+  };
+  academicInfo?: {
+    educationLevel?: 'HIGH_SCHOOL' | 'UNDERGRADUATE' | 'GRADUATE' | 'POSTGRADUATE' | 'OTHER';
+    institution?: string;
+    fieldOfStudy?: string;
+    graduationYear?: number;
+    currentlyStudying?: boolean;
+  };
+  professionalInfo?: {
+    currentPosition?: string;
+    company?: string;
+    industry?: string;
+    experience?: 'STUDENT' | '0-1' | '1-3' | '3-5' | '5-10' | '10+';
+    skills?: string[];
+    interests?: string[];
+  };
+  learningPreferences?: {
+    preferredLearningStyle?: 'VISUAL' | 'AUDITORY' | 'KINESTHETIC' | 'READING_WRITING';
+    goals?: string[];
+    availabilityHours?: number;
+    preferredTimeSlots?: string[];
+    notificationPreferences?: {
+      email?: boolean;
+      sms?: boolean;
+      push?: boolean;
+      frequency?: 'IMMEDIATE' | 'DAILY' | 'WEEKLY' | 'NEVER';
+    };
+  };
+  privacy?: {
+    profileVisibility?: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY';
+    allowMessaging?: boolean;
+    allowConnectionRequests?: boolean;
+    dataProcessingConsent?: boolean;
+    marketingConsent?: boolean;
+  };
+  gamification?: {
+    totalPoints?: number;
+    level?: number;
+    badges?: Badge[];
+    achievements?: Achievement[];
+    streaks?: {
+      currentLoginStreak?: number;
+      longestLoginStreak?: number;
+      currentLearningStreak?: number;
+      longestLearningStreak?: number;
+    };
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon?: string;
+  earnedAt: string;
+  category?: string;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  points: number;
+  unlockedAt: string;
+  type: 'MILESTONE' | 'STREAK' | 'COMPLETION' | 'PERFORMANCE';
+}
+
+export interface Enrollment {
+  id: string;
+  programmeId: string;
+  studentId: string;
+  status: 'ENROLLED' | 'IN_PROGRESS' | 'COMPLETED' | 'SUSPENDED' | 'CANCELLED';
+  enrollmentDate: string;
+  completionDate?: string;
+  progress: {
+    percentage: number;
+    completedModules: string[];
+    currentModule?: string;
+    timeSpent: number;
+  };
+  programme: {
+    id: string;
+    title: string;
+    description: string;
+    duration: number;
+    level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+    category: string;
+  };
+  certificates?: Certificate[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Certificate {
+  id: string;
+  title: string;
+  issuedDate: string;
+  certificateUrl: string;
+  credentialId: string;
+}
+
+export interface Activity {
+  id: string;
+  type: 'LESSON_COMPLETED' | 'MODULE_COMPLETED' | 'QUIZ_TAKEN' | 'ASSIGNMENT_SUBMITTED';
+  title: string;
+  description: string;
+  timestamp: string;
+  programmeId?: string;
+  moduleId?: string;
+  points?: number;
+}
+
+export interface Notification {
+  id: string;
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  actionUrl?: string;
+}
+
+export interface Deadline {
+  id: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  type: 'ASSIGNMENT' | 'QUIZ' | 'PROJECT' | 'EXAM';
+  programmeId: string;
+  moduleId?: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+}
+
+export interface Progress {
+  enrollmentId: string;
+  moduleId: string;
+  percentage: number;
+  timeSpent: number;
+  lastAccessedAt: string;
+  completedLessons: string[];
+  currentLesson?: string;
+}
+
+export interface Streak {
+  type: 'LOGIN' | 'LEARNING' | 'COMPLETION';
+  current: number;
+  longest: number;
+  lastUpdated: string;
+}
+
+export interface ProgressOverTime {
+  date: string;
+  progress: number;
+  timeSpent: number;
+  activitiesCompleted: number;
+}
+
+export interface CategoryProgress {
+  category: string;
+  progress: number;
+  totalCourses: number;
+  completedCourses: number;
+  timeSpent: number;
+}
+
 // Auth API
 export const authAPI = {
   // Register new user
@@ -276,23 +462,30 @@ export const userAPI = {
 export const studentAPI = {
   // Get student dashboard data
   getDashboard: async (): Promise<ApiResponse<{
-    student: User;
+    student: User & { profile?: StudentProfile };
     stats: {
       totalCourses: number;
       completedCourses: number;
       inProgressCourses: number;
-      averageGrade: number;
+      averageProgress: number;
+      totalTimeSpent: number;
+      certificatesEarned: number;
     };
-    recentActivity: any[];
-    upcomingDeadlines: any[];
-    notifications: any[];
+    activeEnrollments: Enrollment[];
+    recentActivity: Activity[];
+    upcomingDeadlines: Deadline[];
+    notifications: Notification[];
   }>> => {
     const response = await api.get('/student/dashboard');
     return response.data;
   },
 
   // Get student profile
-  getProfile: async (): Promise<ApiResponse<User>> => {
+  getProfile: async (): Promise<ApiResponse<{
+    user: User;
+    profile: StudentProfile;
+    completeness: number;
+  }>> => {
     const response = await api.get('/student/profile');
     return response.data;
   },
@@ -302,16 +495,237 @@ export const studentAPI = {
     firstName?: string;
     lastName?: string;
     phoneNumber?: string;
+    contactInfo?: {
+      phoneNumber?: string;
+      alternateEmail?: string;
+      socialMedia?: {
+        linkedin?: string;
+        twitter?: string;
+        github?: string;
+        portfolio?: string;
+      };
+    };
     address?: {
       street?: string;
       city?: string;
       state?: string;
-      zipCode?: string;
+      postalCode?: string;
       country?: string;
+      timezone?: string;
     };
-    dateOfBirth?: string;
-  }): Promise<ApiResponse<User>> => {
+    academicInfo?: {
+      educationLevel?: 'HIGH_SCHOOL' | 'UNDERGRADUATE' | 'GRADUATE' | 'POSTGRADUATE' | 'OTHER';
+      institution?: string;
+      fieldOfStudy?: string;
+      graduationYear?: number;
+      currentlyStudying?: boolean;
+    };
+    professionalInfo?: {
+      currentPosition?: string;
+      company?: string;
+      industry?: string;
+      experience?: 'STUDENT' | '0-1' | '1-3' | '3-5' | '5-10' | '10+';
+      skills?: string[];
+      interests?: string[];
+    };
+    learningPreferences?: {
+      preferredLearningStyle?: 'VISUAL' | 'AUDITORY' | 'KINESTHETIC' | 'READING_WRITING';
+      goals?: string[];
+      availabilityHours?: number;
+      preferredTimeSlots?: string[];
+      notificationPreferences?: {
+        email?: boolean;
+        sms?: boolean;
+        push?: boolean;
+        frequency?: 'IMMEDIATE' | 'DAILY' | 'WEEKLY' | 'NEVER';
+      };
+    };
+    privacy?: {
+      profileVisibility?: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY';
+      allowMessaging?: boolean;
+      allowConnectionRequests?: boolean;
+      dataProcessingConsent?: boolean;
+      marketingConsent?: boolean;
+    };
+  }): Promise<ApiResponse<{
+    user: User;
+    profile: StudentProfile;
+    completeness: number;
+  }>> => {
     const response = await api.put('/student/profile', data);
+    return response.data;
+  },
+
+  // Upload profile photo
+  uploadProfilePhoto: async (file: File): Promise<ApiResponse<{
+    profilePhoto: {
+      url: string;
+      filename: string;
+      uploadDate: string;
+      size: number;
+      mimeType: string;
+    };
+    completeness: number;
+  }>> => {
+    const formData = new FormData();
+    formData.append('profilePhoto', file);
+    
+    const response = await api.post('/student/profile/photo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Delete profile photo
+  deleteProfilePhoto: async (): Promise<ApiResponse<{
+    completeness: number;
+    gravatarUrl?: string;
+  }>> => {
+    const response = await api.delete('/student/profile/photo');
+    return response.data;
+  },
+
+  // Get profile photo URL
+  getProfilePhotoUrl: async (): Promise<ApiResponse<{
+    profilePhotoUrl: string;
+    source: 'custom' | 'gravatar' | 'initials';
+    isCustom: boolean;
+    isGravatar: boolean;
+    isInitials: boolean;
+    hasCustomPhoto: boolean;
+  }>> => {
+    const response = await api.get('/student/profile/photo-url');
+    return response.data;
+  },
+
+  // Get student enrollments
+  getEnrollments: async (params?: {
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse<{
+    enrollments: Enrollment[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }>> => {
+    const response = await api.get('/student/enrollments', { params });
+    return response.data;
+  },
+
+  // Get enrollment details
+  getEnrollmentDetails: async (enrollmentId: string): Promise<ApiResponse<Enrollment>> => {
+    const response = await api.get(`/student/enrollments/${enrollmentId}`);
+    return response.data;
+  },
+
+  // Get enrolled programs for profile management
+  getEnrolledPrograms: async (params?: {
+    status?: string;
+    category?: string;
+    search?: string;
+  }): Promise<ApiResponse<{
+    enrolledPrograms: {
+      id: string;
+      programme: {
+        id: string;
+        title: string;
+        description: string;
+        duration: string;
+        level: string;
+        category: string;
+        skills: string[];
+        tags: string[];
+        instructor?: {
+          firstName: string;
+          lastName: string;
+          email: string;
+          profilePicture?: string;
+        };
+        totalModules: number;
+      };
+      enrollment: {
+        status: string;
+        enrollmentDate: string;
+        completionDate?: string;
+        certificateIssued: boolean;
+        grade?: string;
+      };
+      progress: {
+        totalProgress: number;
+        completedModules: string[];
+        completedLessons: string[];
+        timeSpent: number;
+        lastActivityDate?: string;
+        streak: number;
+      };
+      achievements: {
+        id: string;
+        title: string;
+        description: string;
+        earnedDate: string;
+        type: string;
+      }[];
+    }[];
+    statistics: {
+      total: number;
+      active: number;
+      completed: number;
+      paused: number;
+      averageProgress: number;
+      totalTimeSpent: number;
+      categories: string[];
+    };
+  }>> => {
+    const response = await api.get('/student/enrolled-programs', { params });
+    return response.data;
+  },
+
+  // Update learning activity
+  updateLearningActivity: async (data: {
+    enrollmentId: string;
+    moduleId?: string;
+    lessonId?: string;
+    timeSpent?: number;
+  }): Promise<ApiResponse<{
+    progress: Progress;
+    streak: Streak;
+  }>> => {
+    const response = await api.post('/student/activity', data);
+    return response.data;
+  },
+
+  // Get student analytics
+  getAnalytics: async (): Promise<ApiResponse<{
+    overview: {
+      totalEnrollments: number;
+      completedCourses: number;
+      activeEnrollments: number;
+      certificatesEarned: number;
+      totalTimeSpent: number;
+      averageProgress: number;
+    };
+    gamification: {
+      totalPoints: number;
+      level: number;
+      badges: Badge[];
+      streaks: {
+        currentLoginStreak: number;
+        longestLoginStreak: number;
+        currentLearningStreak: number;
+        longestLearningStreak: number;
+      };
+    };
+    progressOverTime: ProgressOverTime[];
+    categoryProgress: CategoryProgress[];
+    profileCompleteness: number;
+  }>> => {
+    const response = await api.get('/student/analytics');
     return response.data;
   },
 };

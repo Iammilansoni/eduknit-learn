@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { IUser } from '../models/User';
 
 // Re-export from the comprehensive JWT configuration
 export * from '../config/jwt';
@@ -12,10 +13,7 @@ export interface JWTPayload {
 }
 
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    role: string;
-  };
+  user?: IUser;
 }
 
 // Re-export commonly used functions for backward compatibility

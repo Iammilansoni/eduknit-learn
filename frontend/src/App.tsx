@@ -35,6 +35,8 @@ import DecisionMakingPage from "./pages/programs/DecisionMakingPage";
 // Dashboard Pages
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import StudentDashboardPage from "./pages/StudentDashboardPage";
+import StudentProfilePage from "./pages/StudentProfilePage";
+import StudentAnalyticsPage from "./pages/StudentAnalyticsPage";
 import VisitorPage from "./pages/VisitorPage";
 import NotAuthorizedPage from "./pages/NotAuthorizedPage";
 import EmailVerificationRequired from "./pages/EmailVerificationRequired";
@@ -88,6 +90,22 @@ const App = () => (
               element={
                 <ProtectedRoute allowedRoles={['student', 'user']}>
                   <StudentDashboardPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student/profile" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <StudentProfilePage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student/analytics" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <StudentAnalyticsPage />
                 </ProtectedRoute>
               } 
             />
