@@ -115,5 +115,61 @@ export const analyticsApi = {
       const axiosError = error as AxiosError<{ message?: string }>;
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch streaks and achievements');
     }
+  },
+
+  // Get comprehensive student analytics
+  async getStudentAnalytics(): Promise<any> {
+    try {
+      const response = await api.get('/analytics/student');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch student analytics');
+      }
+      return response.data.data;
+    } catch (error) {
+      const axiosError = error as AxiosError<{ message?: string }>;
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch student analytics');
+    }
+  },
+
+  // Get course-specific analytics
+  async getCourseAnalytics(courseId: string): Promise<any> {
+    try {
+      const response = await api.get(`/analytics/course/${courseId}`);
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch course analytics');
+      }
+      return response.data.data;
+    } catch (error) {
+      const axiosError = error as AxiosError<{ message?: string }>;
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch course analytics');
+    }
+  },
+
+  // Get learning streak data
+  async getLearningStreak(): Promise<any> {
+    try {
+      const response = await api.get('/analytics/streak');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch learning streak');
+      }
+      return response.data.data;
+    } catch (error) {
+      const axiosError = error as AxiosError<{ message?: string }>;
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch learning streak');
+    }
+  },
+
+  // Get achievements data
+  async getAchievements(): Promise<any> {
+    try {
+      const response = await api.get('/analytics/achievements');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch achievements');
+      }
+      return response.data.data;
+    } catch (error) {
+      const axiosError = error as AxiosError<{ message?: string }>;
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch achievements');
+    }
   }
 };

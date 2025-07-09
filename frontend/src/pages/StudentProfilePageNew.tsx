@@ -14,7 +14,6 @@ import {
   Mail,
   MapPin,
   GraduationCap,
-  Settings,
   BookOpen,
   Clock,
   Calendar,
@@ -25,9 +24,9 @@ import {
 import {
   PersonalInfoForm,
   AcademicInfoForm,
-  PrivacySecuritySettings,
   ProfilePhotoHeader,
-  ProfilePhotoUpload
+  ProfilePhotoUpload,
+  ProfileInfoForm
 } from '@/components/student';
 
 const StudentProfilePage = () => {
@@ -139,11 +138,11 @@ const StudentProfilePage = () => {
           </Card>
         </div>
 
-        {/* Main Profile Tabs - Reduced from 6 to 3 */}
+        {/* Main Profile Tabs - Reduced to 2 */}
         <Card>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <CardHeader>
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="overview" className="text-sm font-medium">
                   <Eye className="h-4 w-4 mr-2" />
                   Overview & Programs
@@ -151,10 +150,6 @@ const StudentProfilePage = () => {
                 <TabsTrigger value="profile" className="text-sm font-medium">
                   <User className="h-4 w-4 mr-2" />
                   Profile Information
-                </TabsTrigger>
-                <TabsTrigger value="settings" className="text-sm font-medium">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Settings & Privacy
                 </TabsTrigger>
               </TabsList>
             </CardHeader>
@@ -306,45 +301,16 @@ const StudentProfilePage = () => {
 
             {/* Profile Tab - Contains personal, academic, and professional info */}
             <TabsContent value="profile" className="p-6">
-              <div className="space-y-8">
-                {/* Personal Information Section */}
-                <div>
-                  <div className="flex items-center mb-6">
-                    <User className="h-6 w-6 mr-2" />
-                    <h3 className="text-xl font-semibold">Personal Information</h3>
-                  </div>
-                  <PersonalInfoForm initialData={{
-                    firstName: profileUser?.firstName,
-                    lastName: profileUser?.lastName,
-                    contactInfo: profileData?.data?.profile?.contactInfo,
-                    address: profileData?.data?.profile?.address,
-                  }} />
-                </div>
-
-                {/* Academic Information Section */}
-                <div className="border-t pt-8">
-                  <div className="flex items-center mb-6">
-                    <GraduationCap className="h-6 w-6 mr-2" />
-                    <h3 className="text-xl font-semibold">Academic Information</h3>
-                  </div>
-                  <AcademicInfoForm initialData={profileData?.data?.profile?.academicInfo} />
-                </div>
-              </div>
+              <ProfileInfoForm initialData={{
+                firstName: profileUser?.firstName,
+                lastName: profileUser?.lastName,
+                contactInfo: profileData?.data?.profile?.contactInfo,
+                address: profileData?.data?.profile?.address,
+                academicInfo: profileData?.data?.profile?.academicInfo,
+              }} />
             </TabsContent>
 
-            {/* Settings Tab - Contains privacy and security settings only */}
-            <TabsContent value="settings" className="p-6">
-              <div className="space-y-8">
-                {/* Privacy & Security Settings Section */}
-                <div>
-                  <div className="flex items-center mb-6">
-                    <Shield className="h-6 w-6 mr-2" />
-                    <h3 className="text-xl font-semibold">Privacy & Security</h3>
-                  </div>
-                  <PrivacySecuritySettings />
-                </div>
-              </div>
-            </TabsContent>
+
             
           </Tabs>
         </Card>

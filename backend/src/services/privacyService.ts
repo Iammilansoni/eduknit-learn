@@ -9,7 +9,7 @@ export class PrivacyService {
      */
     static async updateProfileVisibility(
         userId: string,
-        visibility: 'public' | 'private' | 'contacts_only',
+        visibility: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY',
         updatedBy: string,
         req?: Request
     ): Promise<IUser> {
@@ -37,12 +37,83 @@ export class PrivacyService {
     }
 
     /**
+     * Update all privacy settings at once
+     */
+    static async updatePrivacySettings(
+        userId: string,
+        settings: {
+            profileVisibility?: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY';
+            allowMessaging?: boolean;
+            allowConnectionRequests?: boolean;
+            dataProcessingConsent?: boolean;
+            marketingConsent?: boolean;
+            showProgress?: boolean;
+            showAchievements?: boolean;
+        },
+        updatedBy: string,
+        req?: Request
+    ): Promise<IUser> {
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const previousSettings = {
+            profileVisibility: user.profileVisibility,
+            allowMessaging: user.allowMessaging,
+            allowConnectionRequests: user.allowConnectionRequests,
+            dataProcessingConsent: user.dataProcessingConsent,
+            marketingConsent: user.marketingConsent,
+            showProgress: user.showProgress,
+            showAchievements: user.showAchievements
+        };
+
+        // Update settings if provided
+        if (settings.profileVisibility !== undefined) {
+            user.profileVisibility = settings.profileVisibility;
+        }
+        if (settings.allowMessaging !== undefined) {
+            user.allowMessaging = settings.allowMessaging;
+        }
+        if (settings.allowConnectionRequests !== undefined) {
+            user.allowConnectionRequests = settings.allowConnectionRequests;
+        }
+        if (settings.dataProcessingConsent !== undefined) {
+            user.dataProcessingConsent = settings.dataProcessingConsent;
+        }
+        if (settings.marketingConsent !== undefined) {
+            user.marketingConsent = settings.marketingConsent;
+        }
+        if (settings.showProgress !== undefined) {
+            user.showProgress = settings.showProgress;
+        }
+        if (settings.showAchievements !== undefined) {
+            user.showAchievements = settings.showAchievements;
+        }
+
+        await user.save();
+
+        // Log the privacy settings changes
+        await AuditService.logProfileUpdate(
+            userId,
+            updatedBy,
+            updatedBy === userId ? 'student' : 'admin',
+            previousSettings,
+            settings,
+            req
+        );
+
+        return user;
+    }
+
+    /**
      * Update consent settings
      */
     static async updateConsentSettings(
         userId: string,
         settings: {
-            dataRetentionConsent?: boolean;
+            dataProcessingConsent?: boolean;
             marketingConsent?: boolean;
         },
         updatedBy: string,
@@ -55,12 +126,12 @@ export class PrivacyService {
         }
 
         const previousSettings = {
-            dataRetentionConsent: user.dataRetentionConsent,
+            dataProcessingConsent: user.dataProcessingConsent,
             marketingConsent: user.marketingConsent
         };
 
-        if (settings.dataRetentionConsent !== undefined) {
-            user.dataRetentionConsent = settings.dataRetentionConsent;
+        if (settings.dataProcessingConsent !== undefined) {
+            user.dataProcessingConsent = settings.dataProcessingConsent;
         }
         if (settings.marketingConsent !== undefined) {
             user.marketingConsent = settings.marketingConsent;
@@ -115,21 +186,21 @@ export class PrivacyService {
         }
 
         switch (targetUser.profileVisibility) {
-            case 'public':
+            case 'PUBLIC':
                 return { canView: true };
                 
-            case 'private':
+            case 'PRIVATE':
                 return { 
                     canView: false, 
                     reason: 'This profile is set to private' 
                 };
                 
-            case 'contacts_only':
-                // For contacts_only, we'd need to implement a contacts/friends system
+            case 'CONNECTIONS_ONLY':
+                // For CONNECTIONS_ONLY, we'd need to implement a contacts/friends system
                 // For now, we'll treat it as private for non-contacts
                 return { 
                     canView: false, 
-                    reason: 'This profile is only visible to contacts' 
+                    reason: 'This profile is only visible to connections' 
                 };
                 
             default:
@@ -228,8 +299,12 @@ export class PrivacyService {
      */
     static async getPrivacySettings(userId: string): Promise<{
         profileVisibility: string;
-        dataRetentionConsent: boolean;
+        allowMessaging: boolean;
+        allowConnectionRequests: boolean;
+        dataProcessingConsent: boolean;
         marketingConsent: boolean;
+        showProgress: boolean;
+        showAchievements: boolean;
     }> {
         const user = await User.findById(userId);
         
@@ -239,8 +314,12 @@ export class PrivacyService {
 
         return {
             profileVisibility: user.profileVisibility,
-            dataRetentionConsent: user.dataRetentionConsent,
-            marketingConsent: user.marketingConsent
+            allowMessaging: user.allowMessaging,
+            allowConnectionRequests: user.allowConnectionRequests,
+            dataProcessingConsent: user.dataProcessingConsent,
+            marketingConsent: user.marketingConsent,
+            showProgress: user.showProgress,
+            showAchievements: user.showAchievements
         };
     }
 }

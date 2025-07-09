@@ -15,6 +15,8 @@ export interface IUserCourseProgress extends Document {
     startedAt?: Date;
     completedAt?: Date;
     lastAccessedAt: Date;
+    completed?: Date; // Alias for completedAt
+    lastAccessed?: Date; // Alias for lastAccessedAt
     attempts: number;
     bookmarked: boolean;
     notes?: string;

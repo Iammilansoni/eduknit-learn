@@ -10,12 +10,6 @@ export const basicInfoSchema = z.object({
 export const contactInfoSchema = z.object({
   phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits').optional(),
   alternateEmail: z.string().email('Invalid email format').optional(),
-  socialMedia: z.object({
-    linkedin: z.string().url('Invalid LinkedIn URL').optional(),
-    twitter: z.string().url('Invalid Twitter URL').optional(),
-    github: z.string().url('Invalid GitHub URL').optional(),
-    portfolio: z.string().url('Invalid portfolio URL').optional(),
-  }).optional(),
 });
 
 // Address Schema
@@ -84,12 +78,7 @@ export const personalInfoSchema = z.object({
   lastName: z.string().min(1, 'Last name is required').max(50, 'Last name must be less than 50 characters'),
   phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits').optional(),
   alternateEmail: z.string().email('Invalid email format').optional(),
-  socialMedia: z.object({
-    linkedin: z.string().url('Invalid LinkedIn URL').optional(),
-    twitter: z.string().url('Invalid Twitter URL').optional(),
-    github: z.string().url('Invalid GitHub URL').optional(),
-    portfolio: z.string().url('Invalid portfolio URL').optional(),
-  }).optional(),
+
   address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),

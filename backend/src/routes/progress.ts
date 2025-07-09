@@ -5,10 +5,11 @@ import {
     getCourseProgress,
     markLessonCompleted,
     updateLessonProgress,
-    recordQuizResults,
+    recordQuizResult,
     getQuizResults,
     getProgressDashboard,
-    getUserSmartProgress
+    getUserSmartProgress,
+    getCourseProgressDetails
 } from '../controllers/progressController';
 
 const router = express.Router();
@@ -32,43 +33,35 @@ router.get('/student/:studentId', getStudentProgress);
 router.get('/course/:studentId/:programmeId', getCourseProgress);
 
 /**
- * @route GET /api/progress/next-module/:studentId/:programmeId
- * @desc Get the next module to complete based on prerequisites and progress
+ * @route GET /api/progress/course-details/:programmeId
+ * @desc Get detailed progress structure for a specific course
  * @access Private
  */
-// router.get('/next-module/:studentId/:programmeId', getNextModule); // TODO: Implement
+router.get('/course-details/:programmeId', getCourseProgressDetails);
 
 /**
- * @route GET /api/progress/statistics/:studentId
- * @desc Get learning statistics and history for a student
- * @query programmeId (optional), timeframe (optional, default 30 days)
- * @access Private
- */
-// router.get('/statistics/:studentId', getLearningStatistics); // TODO: Implement
-
-/**
- * @route POST /api/progress/lesson/complete
+ * @route POST /api/progress/lesson/:lessonId/complete
  * @desc Mark a lesson as completed
- * @body studentId, programmeId, moduleId, lessonId, timeSpent (optional)
+ * @body timeSpent, watchTimeVideo, notes
  * @access Private
  */
-router.post('/lesson/complete', markLessonCompleted);
+router.post('/lesson/:lessonId/complete', markLessonCompleted);
 
 /**
- * @route PUT /api/progress/lesson/update
- * @desc Update lesson progress (for partial completion)
- * @body studentId, programmeId, moduleId, lessonId, progressPercentage, timeSpent, watchTimeVideo
+ * @route PUT /api/progress/lesson/:lessonId/progress
+ * @desc Update lesson progress (partial completion)
+ * @body progressPercentage, timeSpent, watchTimeVideo, notes
  * @access Private
  */
-router.put('/lesson/update', updateLessonProgress);
+router.put('/lesson/:lessonId/progress', updateLessonProgress);
 
 /**
- * @route POST /api/progress/quiz/submit
+ * @route POST /api/progress/lesson/:lessonId/quiz
  * @desc Record quiz/assessment results
- * @body studentId, programmeId, moduleId, lessonId, quizId, score, maxScore, timeSpent, answers, passingScore
+ * @body quizId, score, maxScore, passingScore, timeSpent, answers, feedback
  * @access Private
  */
-router.post('/quiz/submit', recordQuizResults);
+router.post('/lesson/:lessonId/quiz', recordQuizResult);
 
 /**
  * @route GET /api/progress/quiz/:studentId/:lessonId

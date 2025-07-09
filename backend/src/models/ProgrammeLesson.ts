@@ -16,8 +16,21 @@ export interface IProgrammeLesson extends Document {
         textContent?: string;
         documentUrl?: string;
         interactiveElements?: any[];
+        quiz?: {
+            questions: {
+                id: string;
+                question: string;
+                type: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'SHORT_ANSWER';
+                options?: string[];
+                correctAnswer: any;
+                points: number;
+            }[];
+            timeLimit?: number; // in minutes
+            passingScore: number;
+        };
     };
     estimatedDuration: number; // in minutes
+    duration: number; // in minutes - alias for estimatedDuration
     isRequired: boolean;
     prerequisites: Schema.Types.ObjectId[]; // Other lesson IDs
     learningObjectives: string[];
@@ -88,12 +101,54 @@ const ProgrammeLessonSchema = new Schema<IProgrammeLesson>(
             },
             interactiveElements: [{
                 type: Schema.Types.Mixed
-            }]
+            }],
+            quiz: {
+                questions: [{
+                    id: {
+                        type: String,
+                        required: true
+                    },
+                    question: {
+                        type: String,
+                        required: true
+                    },
+                    type: {
+                        type: String,
+                        enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER'],
+                        required: true
+                    },
+                    options: [{
+                        type: String
+                    }],
+                    correctAnswer: {
+                        type: Schema.Types.Mixed,
+                        required: true
+                    },
+                    points: {
+                        type: Number,
+                        required: true
+                    }
+                }],
+                timeLimit: {
+                    type: Number,
+                    min: 0
+                },
+                passingScore: {
+                    type: Number,
+                    required: true,
+                    min: 0,
+                    max: 100
+                }
+            }
         },
         estimatedDuration: {
             type: Number,
             required: true,
             min: 1 // in minutes
+        },
+        duration: {
+            type: Number,
+            min: 1 // in minutes - alias for estimatedDuration
         },
         isRequired: {
             type: Boolean,

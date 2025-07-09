@@ -33,9 +33,13 @@ export interface IUser extends Document {
     lockUntil?: Date;
     refreshTokens: string[];
     // Privacy and visibility settings
-    profileVisibility: 'public' | 'private' | 'contacts_only';
-    dataRetentionConsent: boolean;
+    profileVisibility: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY';
+    allowMessaging: boolean;
+    allowConnectionRequests: boolean;
+    dataProcessingConsent: boolean;
     marketingConsent: boolean;
+    showProgress: boolean;
+    showAchievements: boolean;
     // Account deletion tracking
     deletionRequested: boolean;
     deletionRequestedAt?: Date;
@@ -141,16 +145,32 @@ const UserSchema = new Schema<IUser>(
         // Privacy and visibility settings
         profileVisibility: {
             type: String,
-            enum: ['public', 'private', 'contacts_only'],
-            default: 'public'
+            enum: ['PUBLIC', 'PRIVATE', 'CONNECTIONS_ONLY'],
+            default: 'PUBLIC'
         },
-        dataRetentionConsent: {
+        allowMessaging: {
+            type: Boolean,
+            default: true
+        },
+        allowConnectionRequests: {
+            type: Boolean,
+            default: true
+        },
+        dataProcessingConsent: {
             type: Boolean,
             default: true
         },
         marketingConsent: {
             type: Boolean,
             default: false
+        },
+        showProgress: {
+            type: Boolean,
+            default: true
+        },
+        showAchievements: {
+            type: Boolean,
+            default: true
         },
         // Account deletion tracking
         deletionRequested: {

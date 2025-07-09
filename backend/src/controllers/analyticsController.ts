@@ -5,6 +5,8 @@ import Enrollment from '../models/Enrollment';
 import { success, serverError, validationError } from '../utils/response';
 import { AuthenticatedRequest } from '../utils/jwt';
 import logger from '../config/logger';
+import LessonCompletion from '../models/LessonCompletion';
+import QuizResult from '../models/QuizResult';
 
 /**
  * Get analytics overview for student
@@ -326,5 +328,366 @@ export const getStreaksAndAchievements = async (req: AuthenticatedRequest, res: 
   } catch (error) {
     logger.error('Get streaks and achievements error:', error);
     serverError(res, 'Failed to retrieve streaks and achievements');
+  }
+};
+
+// Get comprehensive analytics data for student dashboard
+export const getStudentAnalytics = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    // Get user's enrolled courses
+    const enrollments = await Enrollment.find({ userId }).populate('courseId');
+    
+    // Get completed lessons
+    const completedLessons = await LessonCompletion.find({ userId });
+    
+    // Get quiz results
+    const quizResults = await QuizResult.find({ userId });
+    
+    // Calculate analytics
+    const totalCourses = enrollments.length;
+    const completedCourses = enrollments.filter(e => e.progress.totalProgress >= 100).length;
+    const totalLessons = enrollments.reduce((sum, e) => sum + (e.programmeId as any).lessons?.length || 0, 0);
+    const completedLessonsCount = completedLessons.length;
+    const totalQuizzes = quizResults.length;
+    const passedQuizzes = quizResults.filter(q => q.score >= 70).length;
+    const averageScore = totalQuizzes > 0 ? 
+      quizResults.reduce((sum, q) => sum + q.score, 0) / totalQuizzes : 0;
+
+    // Calculate study time (mock data for now)
+    const studyTime = Math.floor(Math.random() * 5000) + 1000; // minutes
+    
+    // Calculate streak (mock data for now)
+    const streakDays = Math.floor(Math.random() * 30) + 1;
+    
+    // Calculate level and XP (mock data for now)
+    const currentLevel = Math.floor(studyTime / 100) + 1;
+    const experiencePoints = studyTime;
+    const nextLevelXP = currentLevel * 100;
+
+    // Weekly progress (mock data for now)
+    const weeklyProgress = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      return {
+        date: date.toISOString().split('T')[0],
+        lessonsCompleted: Math.floor(Math.random() * 5) + 1,
+        timeSpent: Math.floor(Math.random() * 180) + 30,
+        quizzesPassed: Math.floor(Math.random() * 3) + 1
+      };
+    });
+
+    // Course progress
+    const courseProgress = enrollments.map(enrollment => {
+      const course = enrollment.programmeId as any;
+      const courseLessons = course.lessons?.length || 0;
+      const completedCourseLessons = completedLessons.filter(
+        l => l.courseId.toString() === course._id.toString()
+      ).length;
+      
+      const courseQuizzes = quizResults.filter(
+        q => q.programmeId.toString() === course._id.toString()
+      );
+      const averageCourseScore = courseQuizzes.length > 0 ?
+        courseQuizzes.reduce((sum, q) => sum + q.score, 0) / courseQuizzes.length : 0;
+
+      return {
+        courseId: course._id,
+        courseTitle: course.title,
+        progress: courseLessons > 0 ? Math.round((completedCourseLessons / courseLessons) * 100) : 0,
+        lessonsCompleted: completedCourseLessons,
+        totalLessons: courseLessons,
+        averageScore: Math.round(averageCourseScore)
+      };
+    });
+
+    // Achievements (mock data for now)
+    const achievements = [
+      {
+        id: '1',
+        title: 'First Steps',
+        description: 'Complete your first lesson',
+        icon: '🎯',
+        earnedAt: completedLessonsCount > 0 ? new Date().toISOString() : '',
+        progress: Math.min(completedLessonsCount, 1),
+        maxProgress: 1
+      },
+      {
+        id: '2',
+        title: 'Quiz Master',
+        description: 'Pass 10 quizzes with 90%+ score',
+        icon: '🏆',
+        earnedAt: passedQuizzes >= 10 ? new Date().toISOString() : '',
+        progress: Math.min(passedQuizzes, 10),
+        maxProgress: 10
+      },
+      {
+        id: '3',
+        title: 'Streak Champion',
+        description: 'Maintain a 7-day learning streak',
+        icon: '🔥',
+        earnedAt: streakDays >= 7 ? new Date().toISOString() : '',
+        progress: Math.min(streakDays, 7),
+        maxProgress: 7
+      },
+      {
+        id: '4',
+        title: 'Course Completer',
+        description: 'Complete your first course',
+        icon: '🎓',
+        earnedAt: completedCourses > 0 ? new Date().toISOString() : '',
+        progress: Math.min(completedCourses, 1),
+        maxProgress: 1
+      },
+      {
+        id: '5',
+        title: 'Time Warrior',
+        description: 'Study for 50 hours total',
+        icon: '⏰',
+        earnedAt: studyTime >= 3000 ? new Date().toISOString() : '',
+        progress: Math.min(studyTime, 3000),
+        maxProgress: 3000
+      }
+    ];
+
+    // Learning streak (mock data for now)
+    const learningStreak = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      const isActive = i >= (30 - streakDays);
+      return {
+        date: date.toISOString().split('T')[0],
+        active: isActive,
+        minutes: isActive ? Math.floor(Math.random() * 120) + 30 : 0
+      };
+    });
+
+    const analyticsData = {
+      totalCourses,
+      completedCourses,
+      totalLessons,
+      completedLessons: completedLessonsCount,
+      totalQuizzes,
+      passedQuizzes,
+      averageScore: Math.round(averageScore),
+      studyTime,
+      streakDays,
+      currentLevel,
+      experiencePoints,
+      nextLevelXP,
+      weeklyProgress,
+      courseProgress,
+      achievements,
+      learningStreak
+    };
+
+    res.json(analyticsData);
+  } catch (error) {
+    console.error('Error getting student analytics:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get course-specific analytics
+export const getCourseAnalytics = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const { courseId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    // Get course enrollment
+    const enrollment = await Enrollment.findOne({ studentId: userId, programmeId: courseId }).populate('programmeId');
+    if (!enrollment) {
+      return res.status(404).json({ message: 'Course enrollment not found' });
+    }
+
+    // Get completed lessons for this course
+    const completedLessons = await LessonCompletion.find({ userId, courseId });
+    
+    // Get quiz results for this course
+    const quizResults = await QuizResult.find({ studentId: userId, programmeId: courseId });
+
+    // Calculate course-specific analytics
+    const course = enrollment.programmeId as any;
+    const totalLessons = course.lessons?.length || 0;
+    const completedLessonsCount = completedLessons.length;
+    const progress = totalLessons > 0 ? Math.round((completedLessonsCount / totalLessons) * 100) : 0;
+    
+    const averageScore = quizResults.length > 0 ?
+      quizResults.reduce((sum, q) => sum + q.score, 0) / quizResults.length : 0;
+
+    const courseAnalytics = {
+      courseId: course._id,
+      courseTitle: course.title,
+      progress,
+      lessonsCompleted: completedLessonsCount,
+      totalLessons,
+      averageScore: Math.round(averageScore),
+      quizResults: quizResults.map(q => ({
+        quizId: q.quizId,
+        score: q.score,
+        completedAt: q.createdAt
+      })),
+      completedLessons: completedLessons.map(l => ({
+        lessonId: l.lessonId,
+        completedAt: l.createdAt
+      }))
+    };
+
+    res.json(courseAnalytics);
+  } catch (error) {
+    console.error('Error getting course analytics:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get learning streak data
+export const getLearningStreak = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    // Get completed lessons in the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const completedLessons = await LessonCompletion.find({
+      userId,
+      createdAt: { $gte: thirtyDaysAgo }
+    });
+
+    // Group by date and calculate streak
+    const dailyActivity = new Map();
+    completedLessons.forEach(lesson => {
+      const date = lesson.createdAt.toISOString().split('T')[0];
+      if (!dailyActivity.has(date)) {
+        dailyActivity.set(date, 0);
+      }
+      dailyActivity.set(date, dailyActivity.get(date) + 1);
+    });
+
+    // Calculate current streak
+    let currentStreak = 0;
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      if (dailyActivity.has(dateStr)) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+
+    // Generate streak data for the last 30 days
+    const streakData = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      const dateStr = date.toISOString().split('T')[0];
+      const isActive = dailyActivity.has(dateStr);
+      
+      return {
+        date: dateStr,
+        active: isActive,
+        lessonsCompleted: isActive ? dailyActivity.get(dateStr) : 0,
+        minutes: isActive ? Math.floor(Math.random() * 120) + 30 : 0 // Mock study time
+      };
+    });
+
+    res.json({
+      currentStreak,
+      streakData,
+      totalActiveDays: dailyActivity.size
+    });
+  } catch (error) {
+    console.error('Error getting learning streak:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+// Get achievements data
+export const getAchievements = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    // Get user's learning data
+    const enrollments = await Enrollment.find({ userId });
+    const completedLessons = await LessonCompletion.find({ userId });
+    const quizResults = await QuizResult.find({ userId });
+
+    // Calculate achievements
+    const achievements = [
+      {
+        id: '1',
+        title: 'First Steps',
+        description: 'Complete your first lesson',
+        icon: '🎯',
+        earnedAt: completedLessons.length > 0 ? completedLessons[0].createdAt.toISOString() : '',
+        progress: Math.min(completedLessons.length, 1),
+        maxProgress: 1
+      },
+      {
+        id: '2',
+        title: 'Quiz Master',
+        description: 'Pass 10 quizzes with 90%+ score',
+        icon: '🏆',
+        earnedAt: '',
+        progress: Math.min(quizResults.filter(q => q.score >= 90).length, 10),
+        maxProgress: 10
+      },
+      {
+        id: '3',
+        title: 'Course Explorer',
+        description: 'Enroll in 5 different courses',
+        icon: '📚',
+        earnedAt: '',
+        progress: Math.min(enrollments.length, 5),
+        maxProgress: 5
+      },
+      {
+        id: '4',
+        title: 'Perfect Score',
+        description: 'Get 100% on 3 quizzes',
+        icon: '⭐',
+        earnedAt: '',
+        progress: Math.min(quizResults.filter(q => q.score === 100).length, 3),
+        maxProgress: 3
+      },
+      {
+        id: '5',
+        title: 'Dedicated Learner',
+        description: 'Complete 50 lessons',
+        icon: '🎓',
+        earnedAt: '',
+        progress: Math.min(completedLessons.length, 50),
+        maxProgress: 50
+      }
+    ];
+
+    // Update earned dates
+    achievements.forEach(achievement => {
+      if (achievement.progress >= achievement.maxProgress && !achievement.earnedAt) {
+        achievement.earnedAt = new Date().toISOString();
+      }
+    });
+
+    res.json(achievements);
+  } catch (error) {
+    console.error('Error getting achievements:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 };

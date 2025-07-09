@@ -187,7 +187,7 @@ export class DataDeletionService {
                 address: user?.address,
                 enrollmentDate: user?.enrollmentDate,
                 profileVisibility: user?.profileVisibility,
-                dataRetentionConsent: user?.dataRetentionConsent,
+                dataProcessingConsent: user?.dataProcessingConsent,
                 marketingConsent: user?.marketingConsent
             },
             profile: profile ? {

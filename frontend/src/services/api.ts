@@ -140,12 +140,6 @@ export interface StudentProfile {
   contactInfo?: {
     phoneNumber?: string;
     alternateEmail?: string;
-    socialMedia?: {
-      linkedin?: string;
-      twitter?: string;
-      github?: string;
-      portfolio?: string;
-    };
   };
   address?: {
     street?: string;
@@ -321,56 +315,7 @@ export interface CategoryProgress {
   timeSpent: number;
 }
 
-// Auth API
-export const authAPI = {
-  // Register new user
-  register: async (data: RegisterData): Promise<ApiResponse<User>> => {
-    const response = await api.post('/auth/register', data);
-    return response.data;
-  },
 
-  // Login user
-  login: async (credentials: LoginCredentials): Promise<ApiResponse<User>> => {
-    const response = await api.post('/auth/login', credentials);
-    return response.data;
-  },
-
-  // Logout user
-  logout: async (): Promise<ApiResponse> => {
-    const response = await api.post('/auth/logout');
-    return response.data;
-  },
-
-  // Get current user
-  getCurrentUser: async (): Promise<ApiResponse<User>> => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
-
-  // Forgot password
-  forgotPassword: async (email: string): Promise<ApiResponse> => {
-    const response = await api.post('/auth/forgot-password', { email });
-    return response.data;
-  },
-
-  // Validate reset token
-  validateResetToken: async (token: string): Promise<ApiResponse<{ email: string }>> => {
-    const response = await api.get(`/auth/reset-password?token=${token}`);
-    return response.data;
-  },
-
-  // Reset password
-  resetPassword: async (token: string, newPassword: string): Promise<ApiResponse> => {
-    const response = await api.post('/auth/reset-password', { token, newPassword });
-    return response.data;
-  },
-
-  // Resend verification email
-  resendVerificationEmail: async (email: string): Promise<ApiResponse> => {
-    const response = await api.post('/auth/resend-verification', { email });
-    return response.data;
-  },
-};
 
 // User API
 export const userAPI = {
@@ -458,277 +403,7 @@ export const userAPI = {
   },
 };
 
-// Student API
-export const studentAPI = {
-  // Get student dashboard data
-  getDashboard: async (): Promise<ApiResponse<{
-    student: User & { profile?: StudentProfile };
-    stats: {
-      totalCourses: number;
-      completedCourses: number;
-      inProgressCourses: number;
-      averageProgress: number;
-      totalTimeSpent: number;
-      certificatesEarned: number;
-    };
-    activeEnrollments: Enrollment[];
-    recentActivity: Activity[];
-    upcomingDeadlines: Deadline[];
-    notifications: Notification[];
-  }>> => {
-    const response = await api.get('/student/dashboard');
-    return response.data;
-  },
 
-  // Get student profile
-  getProfile: async (): Promise<ApiResponse<{
-    user: User;
-    profile: StudentProfile;
-    completeness: number;
-  }>> => {
-    const response = await api.get('/student/profile');
-    return response.data;
-  },
-
-  // Update student profile
-  updateProfile: async (data: {
-    firstName?: string;
-    lastName?: string;
-    phoneNumber?: string;
-    contactInfo?: {
-      phoneNumber?: string;
-      alternateEmail?: string;
-      socialMedia?: {
-        linkedin?: string;
-        twitter?: string;
-        github?: string;
-        portfolio?: string;
-      };
-    };
-    address?: {
-      street?: string;
-      city?: string;
-      state?: string;
-      postalCode?: string;
-      country?: string;
-      timezone?: string;
-    };
-    academicInfo?: {
-      educationLevel?: 'HIGH_SCHOOL' | 'UNDERGRADUATE' | 'GRADUATE' | 'POSTGRADUATE' | 'OTHER';
-      institution?: string;
-      fieldOfStudy?: string;
-      graduationYear?: number;
-      currentlyStudying?: boolean;
-    };
-    professionalInfo?: {
-      currentPosition?: string;
-      company?: string;
-      industry?: string;
-      experience?: 'STUDENT' | '0-1' | '1-3' | '3-5' | '5-10' | '10+';
-      skills?: string[];
-      interests?: string[];
-    };
-    learningPreferences?: {
-      preferredLearningStyle?: 'VISUAL' | 'AUDITORY' | 'KINESTHETIC' | 'READING_WRITING';
-      goals?: string[];
-      availabilityHours?: number;
-      preferredTimeSlots?: string[];
-      notificationPreferences?: {
-        email?: boolean;
-        sms?: boolean;
-        push?: boolean;
-        frequency?: 'IMMEDIATE' | 'DAILY' | 'WEEKLY' | 'NEVER';
-      };
-    };
-    privacy?: {
-      profileVisibility?: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY';
-      allowMessaging?: boolean;
-      allowConnectionRequests?: boolean;
-      dataProcessingConsent?: boolean;
-      marketingConsent?: boolean;
-    };
-  }): Promise<ApiResponse<{
-    user: User;
-    profile: StudentProfile;
-    completeness: number;
-  }>> => {
-    const response = await api.put('/student/profile', data);
-    return response.data;
-  },
-
-  // Upload profile photo
-  uploadProfilePhoto: async (file: File): Promise<ApiResponse<{
-    profilePhoto: {
-      url: string;
-      filename: string;
-      uploadDate: string;
-      size: number;
-      mimeType: string;
-    };
-    completeness: number;
-  }>> => {
-    const formData = new FormData();
-    formData.append('profilePhoto', file);
-    
-    const response = await api.post('/student/profile/photo', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return response.data;
-  },
-
-  // Delete profile photo
-  deleteProfilePhoto: async (): Promise<ApiResponse<{
-    completeness: number;
-    gravatarUrl?: string;
-  }>> => {
-    const response = await api.delete('/student/profile/photo');
-    return response.data;
-  },
-
-  // Get profile photo URL
-  getProfilePhotoUrl: async (): Promise<ApiResponse<{
-    profilePhotoUrl: string;
-    source: 'custom' | 'gravatar' | 'initials';
-    isCustom: boolean;
-    isGravatar: boolean;
-    isInitials: boolean;
-    hasCustomPhoto: boolean;
-  }>> => {
-    const response = await api.get('/student/profile/photo-url');
-    return response.data;
-  },
-
-  // Get student enrollments
-  getEnrollments: async (params?: {
-    status?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<ApiResponse<{
-    enrollments: Enrollment[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      pages: number;
-    };
-  }>> => {
-    const response = await api.get('/student/enrollments', { params });
-    return response.data;
-  },
-
-  // Get enrollment details
-  getEnrollmentDetails: async (enrollmentId: string): Promise<ApiResponse<Enrollment>> => {
-    const response = await api.get(`/student/enrollments/${enrollmentId}`);
-    return response.data;
-  },
-
-  // Get enrolled programs for profile management
-  getEnrolledPrograms: async (params?: {
-    status?: string;
-    category?: string;
-    search?: string;
-  }): Promise<ApiResponse<{
-    enrolledPrograms: {
-      id: string;
-      programme: {
-        id: string;
-        title: string;
-        description: string;
-        duration: string;
-        level: string;
-        category: string;
-        skills: string[];
-        tags: string[];
-        instructor?: {
-          firstName: string;
-          lastName: string;
-          email: string;
-          profilePicture?: string;
-        };
-        totalModules: number;
-      };
-      enrollment: {
-        status: string;
-        enrollmentDate: string;
-        completionDate?: string;
-        certificateIssued: boolean;
-        grade?: string;
-      };
-      progress: {
-        totalProgress: number;
-        completedModules: string[];
-        completedLessons: string[];
-        timeSpent: number;
-        lastActivityDate?: string;
-        streak: number;
-      };
-      achievements: {
-        id: string;
-        title: string;
-        description: string;
-        earnedDate: string;
-        type: string;
-      }[];
-    }[];
-    statistics: {
-      total: number;
-      active: number;
-      completed: number;
-      paused: number;
-      averageProgress: number;
-      totalTimeSpent: number;
-      categories: string[];
-    };
-  }>> => {
-    const response = await api.get('/student/enrolled-programs', { params });
-    return response.data;
-  },
-
-  // Update learning activity
-  updateLearningActivity: async (data: {
-    enrollmentId: string;
-    moduleId?: string;
-    lessonId?: string;
-    timeSpent?: number;
-  }): Promise<ApiResponse<{
-    progress: Progress;
-    streak: Streak;
-  }>> => {
-    const response = await api.post('/student/activity', data);
-    return response.data;
-  },
-
-  // Get student analytics
-  getAnalytics: async (): Promise<ApiResponse<{
-    overview: {
-      totalEnrollments: number;
-      completedCourses: number;
-      activeEnrollments: number;
-      certificatesEarned: number;
-      totalTimeSpent: number;
-      averageProgress: number;
-    };
-    gamification: {
-      totalPoints: number;
-      level: number;
-      badges: Badge[];
-      streaks: {
-        currentLoginStreak: number;
-        longestLoginStreak: number;
-        currentLearningStreak: number;
-        longestLearningStreak: number;
-      };
-    };
-    progressOverTime: ProgressOverTime[];
-    categoryProgress: CategoryProgress[];
-    profileCompleteness: number;
-  }>> => {
-    const response = await api.get('/student/analytics');
-    return response.data;
-  },
-};
 
 // Progress API endpoints
 export const progressApi = {
@@ -830,62 +505,44 @@ export const progressApi = {
     const response = await api.post('/student/enroll', { programmeId });
     return response.data;
   },
-};
 
-// Course Content API endpoints
-export const courseApi = {
-  // Get all available courses
-  getAllCourses: async (): Promise<ApiResponse<CourseResponse[]>> => {
-    const response = await api.get('/courses');
-    return response.data;
-  },
+  // Get detailed course progress with new structure
+  getCourseProgressDetails: (courseId: string) =>
+    api.get(`/progress/course-details/${courseId}`),
 
-  // Get course details
-  getCourseDetails: async (programmeId: string): Promise<ApiResponse<CourseResponse>> => {
-    const response = await api.get(`/courses/${programmeId}`);
-    return response.data;
-  },
-
-  // Get modules for a course
-  getModulesForCourse: async (programmeId: string): Promise<ApiResponse<ModuleResponse[]>> => {
-    const response = await api.get(`/courses/${programmeId}/modules`);
-    return response.data;
-  },
-
-  // Get lessons for a module
-  getLessonsForModule: async (moduleId: string): Promise<ApiResponse<LessonResponse[]>> => {
-    const response = await api.get(`/modules/${moduleId}/lessons`);
-    return response.data;
-  },
-
-  // Get lesson details
-  getLessonDetails: async (lessonId: string): Promise<ApiResponse<LessonResponse>> => {
-    const response = await api.get(`/lessons/${lessonId}`);
-    return response.data;
-  },
-
-  // Get my enrolled courses
-  getMyCourses: async (): Promise<ApiResponse<CourseResponse[]>> => {
-    const response = await api.get('/course/my-courses');
-    return response.data;
-  },
-
-  // Get enrolled course details
-  getEnrolledCourseDetail: async (courseId: string): Promise<ApiResponse<CourseResponse>> => {
-    const response = await api.get(`/course/my-course/${courseId}`);
-    return response.data;
-  },
-
-  // Update course progress
-  updateCourseProgress: async (data: {
-    lessonId: string;
-    progressPercentage: number;
-    timeSpent: number;
+  // Mark lesson as completed (new API)
+  markLessonAsCompleted: (lessonId: string, data: {
+    timeSpent?: number;
+    watchTimeVideo?: number;
     notes?: string;
-  }): Promise<ApiResponse<ProgressUpdateResponse>> => {
-    const response = await api.post('/course/progress', data);
-    return response.data;
-  },
+  }) =>
+    api.post(`/progress/lesson/${lessonId}/complete`, data),
+
+  // Update lesson progress (new API)
+  updateLessonProgressNew: (lessonId: string, data: {
+    progressPercentage: number;
+    timeSpent?: number;
+    watchTimeVideo?: number;
+    notes?: string;
+  }) =>
+    api.put(`/progress/lesson/${lessonId}/progress`, data),
+
+  // Record quiz results (new API)
+  recordQuizResultNew: (lessonId: string, data: {
+    quizId?: string;
+    score: number;
+    maxScore: number;
+    passingScore: number;
+    timeSpent?: number;
+    answers?: Array<{
+      questionId: string;
+      answer: string | number | boolean | string[];
+      isCorrect: boolean;
+      pointsAwarded: number;
+    }>;
+    feedback?: string;
+  }) =>
+    api.post(`/progress/lesson/${lessonId}/quiz`, data),
 };
 
 // Error handling utility
@@ -1092,5 +749,205 @@ export interface ProgressUpdateResponse {
     updatedAt: string;
   };
 }
+
+// Course Content API
+export const courseContentAPI = {
+  // Get all courses
+  getAllCourses: () => api.get<ApiResponse<CourseResponse[]>>('/courses').then(res => res.data),
+  
+  // Get course details
+  getCourseDetails: (courseId: string) => api.get<ApiResponse<CourseResponse>>(`/courses/${courseId}`).then(res => res.data),
+  
+  // Get modules for a course
+  getModulesForCourse: (courseId: string) => api.get<ApiResponse<ModuleResponse[]>>(`/courses/${courseId}/modules`).then(res => res.data),
+  
+  // Get lessons for a module
+  getLessonsForModule: (courseId: string, moduleId: string) => 
+    api.get<ApiResponse<LessonResponse[]>>(`/courses/${courseId}/modules/${moduleId}/lessons`).then(res => res.data),
+  
+  // Get lesson details
+  getLessonDetails: (lessonId: string) => api.get<ApiResponse<LessonResponse>>(`/lessons/${lessonId}`).then(res => res.data),
+  
+  // Get lesson content with quiz
+  getLessonContent: (lessonId: string, studentId?: string) => 
+    api.get<ApiResponse<any>>(`/lessons/${lessonId}/content`, {
+      params: { studentId }
+    }).then(res => res.data),
+  
+  // Submit quiz
+  submitQuiz: (lessonId: string, data: { studentId: string; answers: any[]; timeSpent: number }) =>
+    api.post<ApiResponse<any>>(`/lessons/${lessonId}/quiz`, data).then(res => res.data),
+  
+  // Get next module
+  getNextModule: (programmeId: string, studentId?: string) =>
+    api.get<ApiResponse<any>>(`/courses/${programmeId}/next-module`, {
+      params: { studentId }
+    }).then(res => res.data),
+  
+  // Get course progress
+  getCourseProgress: (courseId: string, studentId?: string) =>
+    api.get<ApiResponse<CourseProgressResponse>>(`/progress/course/${studentId}/${courseId}`).then(res => res.data),
+};
+
+// Progress API
+export const progressAPI = {
+  // Get student progress
+  getStudentProgress: (studentId: string, programmeId?: string) =>
+    api.get<ApiResponse<any>>(`/progress/student/${studentId}`, {
+      params: { programmeId }
+    }).then(res => res.data),
+  
+  // Get course progress
+  getCourseProgress: (studentId: string, programmeId: string) =>
+    api.get<ApiResponse<any>>(`/progress/course/${studentId}/${programmeId}`).then(res => res.data),
+  
+  // Mark lesson as completed
+  markLessonCompleted: (lessonId: string, data: { timeSpent: number; watchTimeVideo?: number; notes?: string }) =>
+    api.post<ApiResponse<LessonCompletionResponse>>(`/progress/lesson/${lessonId}/complete`, data).then(res => res.data),
+  
+  // Update lesson progress
+  updateLessonProgress: (lessonId: string, data: { progressPercentage: number; timeSpent: number; watchTimeVideo?: number; notes?: string }) =>
+    api.put<ApiResponse<ProgressUpdateResponse>>(`/progress/lesson/${lessonId}/progress`, data).then(res => res.data),
+  
+  // Record quiz result
+  recordQuizResult: (lessonId: string, data: { quizId: string; score: number; maxScore: number; passingScore: number; timeSpent: number; answers: any[]; feedback?: string }) =>
+    api.post<ApiResponse<QuizSubmissionResponse>>(`/progress/lesson/${lessonId}/quiz`, data).then(res => res.data),
+  
+  // Get quiz results
+  getQuizResults: (studentId: string, lessonId: string) =>
+    api.get<ApiResponse<any>>(`/progress/quiz/${studentId}/${lessonId}`).then(res => res.data),
+  
+  // Get progress dashboard
+  getProgressDashboard: (studentId: string) =>
+    api.get<ApiResponse<DashboardResponse>>(`/progress/dashboard/${studentId}`).then(res => res.data),
+  
+  // Get smart progress
+  getSmartProgress: (courseId: string) =>
+    api.get<ApiResponse<SmartProgressResponse>>(`/progress/smart/${courseId}`).then(res => res.data),
+};
+
+// Student API
+export const studentAPI = {
+  // Get student dashboard
+  getStudentDashboard: () => api.get<ApiResponse<any>>('/student/dashboard').then(res => res.data),
+  
+  // Get student profile
+  getStudentProfile: () => api.get<ApiResponse<StudentProfile>>('/student/profile').then(res => res.data),
+  
+  // Update student profile
+  updateStudentProfile: (data: Partial<StudentProfile>) =>
+    api.put<ApiResponse<StudentProfile>>('/student/profile', data).then(res => res.data),
+  
+  // Upload profile photo
+  uploadProfilePhoto: (file: File) => {
+    const formData = new FormData();
+    formData.append('profilePhoto', file);
+    return api.post<ApiResponse<any>>('/student/profile/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(res => res.data);
+  },
+  
+  // Delete profile photo
+  deleteProfilePhoto: () => api.delete<ApiResponse<any>>('/student/profile/photo').then(res => res.data),
+  
+  // Get profile photo URL
+  getProfilePhotoUrl: () => api.get<ApiResponse<any>>('/student/profile/photo-url').then(res => res.data),
+  
+  // Get student enrollments
+  getStudentEnrollments: (params?: { status?: string; page?: number; limit?: number }) =>
+    api.get<ApiResponse<any>>('/student/enrollments', { params }).then(res => res.data),
+  
+  // Get enrollment details
+  getEnrollmentDetails: (enrollmentId: string) =>
+    api.get<ApiResponse<any>>(`/student/enrollments/${enrollmentId}`).then(res => res.data),
+  
+  // Get enrolled programs
+  getEnrolledPrograms: (params?: { status?: string; category?: string; search?: string }) =>
+    api.get<ApiResponse<any>>('/student/enrolled-programs', { params }).then(res => res.data),
+  
+  // Update learning activity
+  updateLearningActivity: (data: { enrollmentId: string; moduleId?: string; lessonId?: string; timeSpent?: number }) =>
+    api.post<ApiResponse<any>>('/student/activity', data).then(res => res.data),
+  
+  // Get student analytics
+  getStudentAnalytics: () => api.get<ApiResponse<any>>('/student/analytics').then(res => res.data),
+  
+  // Enroll in program
+  enrollInProgram: (programmeId: string) =>
+    api.post<ApiResponse<EnrollmentResponse>>('/student/enroll', { programmeId }).then(res => res.data),
+};
+
+// Auth API
+export const authAPI = {
+  // Register
+  register: (data: RegisterData) => api.post<ApiResponse<User>>('/auth/register', data).then(res => res.data),
+  
+  // Login
+  login: (data: LoginCredentials) => api.post<ApiResponse<User>>('/auth/login', data).then(res => res.data),
+  
+  // Logout
+  logout: () => api.post<ApiResponse<any>>('/auth/logout').then(res => res.data),
+  
+  // Refresh token
+  refreshToken: () => api.post<ApiResponse<any>>('/auth/refresh').then(res => res.data),
+  
+  // Get current user
+  getCurrentUser: () => api.get<ApiResponse<User>>('/auth/me').then(res => res.data),
+  
+  // Forgot password
+  forgotPassword: (email: string) => api.post<ApiResponse<any>>('/auth/forgot-password', { email }).then(res => res.data),
+  
+  // Validate reset token
+  validateResetToken: (token: string) => api.post<ApiResponse<any>>('/auth/reset-password/validate', { token }).then(res => res.data),
+  
+  // Reset password
+  resetPassword: (token: string, password: string) => 
+    api.post<ApiResponse<any>>('/auth/reset-password', { token, password }).then(res => res.data),
+  
+  // Resend email verification
+  resendEmailVerification: (email: string) => 
+    api.post<ApiResponse<any>>('/auth/resend-verification', { email }).then(res => res.data),
+  
+  // Verify email
+  verifyEmail: (token: string) => api.post<ApiResponse<any>>('/auth/verify-email', { token }).then(res => res.data),
+};
+
+// Analytics API
+export const analyticsAPI = {
+  // Get analytics overview
+  getAnalyticsOverview: () => api.get<ApiResponse<any>>('/analytics/overview').then(res => res.data),
+  
+  // Get progress history
+  getProgressHistory: (params?: { startDate?: string; endDate?: string; programmeId?: string }) =>
+    api.get<ApiResponse<any>>('/analytics/progress-history', { params }).then(res => res.data),
+  
+  // Get category performance
+  getCategoryPerformance: () => api.get<ApiResponse<any>>('/analytics/category-performance').then(res => res.data),
+  
+  // Get streaks and achievements
+  getStreaksAndAchievements: () => api.get<ApiResponse<any>>('/analytics/streaks-achievements').then(res => res.data),
+};
+
+// Integration API
+export const integrationAPI = {
+  // Get user integrations
+  getUserIntegrations: () => api.get<ApiResponse<any>>('/integrations').then(res => res.data),
+  
+  // Create or update integration
+  createOrUpdateIntegration: (data: { type: string; config: any }) =>
+    api.post<ApiResponse<any>>('/integrations', data).then(res => res.data),
+  
+  // Test integration
+  testIntegration: (integrationId: string) =>
+    api.post<ApiResponse<any>>(`/integrations/${integrationId}/test`).then(res => res.data),
+  
+  // Delete integration
+  deleteIntegration: (integrationId: string) =>
+    api.delete<ApiResponse<any>>(`/integrations/${integrationId}`).then(res => res.data),
+  
+  // Send test notification
+  sendTestNotification: (integrationId: string) =>
+    api.post<ApiResponse<any>>(`/integrations/${integrationId}/test-notification`).then(res => res.data),
+};
 
 export default api;

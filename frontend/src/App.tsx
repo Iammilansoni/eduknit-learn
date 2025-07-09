@@ -38,12 +38,20 @@ import StudentDashboardPage from "./pages/StudentDashboardPage";
 import StudentProfilePage from "./pages/StudentProfilePageNew";
 import StudentAnalyticsPage from "./pages/StudentAnalyticsPage";
 import MyCoursesPage from "./pages/courses/MyCoursesPage";
+import LessonViewer from "./components/course/LessonViewer";
 import IntegrationSettingsPage from "./pages/IntegrationSettingsPage";
 import VisitorPage from "./pages/VisitorPage";
 import NotAuthorizedPage from "./pages/NotAuthorizedPage";
 import EmailVerificationRequired from "./pages/EmailVerificationRequired";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import ProgressTestPage from "./pages/ProgressTestPage";
+import CalendarPage from './pages/dashboard/CalendarPage';
+import AssignmentsPage from './pages/dashboard/AssignmentsPage';
+import LiveSessionsPage from './pages/dashboard/LiveSessionsPage';
+import HelpSupportPage from './pages/dashboard/HelpSupportPage';
+import AnalyticsPage from './pages/dashboard/AnalyticsPage';
+import SettingsPage from './pages/dashboard/SettingsPage';
 
 const queryClient = new QueryClient();
 
@@ -125,6 +133,30 @@ const App = () => (
               } 
             />
             <Route 
+              path="/student-dashboard/courses" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <MyCoursesPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student-dashboard/courses/:courseId" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <CourseDetailPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/student-dashboard/lessons/:lessonId" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <LessonViewer />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/settings/integrations" 
               element={
                 <ProtectedRoute allowedRoles={['student', 'user']}>
@@ -137,6 +169,16 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="visitor">
                   <VisitorPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Progress Testing Route */}
+            <Route 
+              path="/test/progress" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user', 'admin']}>
+                  <ProgressTestPage />
                 </ProtectedRoute>
               } 
             />
@@ -155,6 +197,26 @@ const App = () => (
             <Route path="/programs/data-analytics" element={<DataAnalyticsPage />} />
             <Route path="/programs/bioskills" element={<BioSkillsPage />} />
             <Route path="/programs/decision-making" element={<DecisionMakingPage />} />
+            
+            {/* Dashboard Routes */}
+            <Route path="/dashboard" element={<ProtectedRoute><StudentDashboardPage /></ProtectedRoute>} />
+            <Route path="/dashboard/analytics" element={<ProtectedRoute><StudentAnalyticsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+            <Route path="/dashboard/assignments" element={<ProtectedRoute><AssignmentsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/live-sessions" element={<ProtectedRoute><LiveSessionsPage /></ProtectedRoute>} />
+            <Route path="/dashboard/help-support" element={<ProtectedRoute><HelpSupportPage /></ProtectedRoute>} />
+            <Route path="/dashboard/profile" element={<ProtectedRoute><StudentProfilePage /></ProtectedRoute>} />
+            <Route path="/student-dashboard/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+            
+            {/* Student Dashboard Routes - Add missing routes */}
+            <Route path="/student-dashboard/analytics" element={<ProtectedRoute allowedRoles={['student', 'user']}><StudentAnalyticsPage /></ProtectedRoute>} />
+            <Route path="/student-dashboard/calendar" element={<ProtectedRoute allowedRoles={['student', 'user']}><CalendarPage /></ProtectedRoute>} />
+            <Route path="/student-dashboard/assignments" element={<ProtectedRoute allowedRoles={['student', 'user']}><AssignmentsPage /></ProtectedRoute>} />
+            <Route path="/student-dashboard/live-sessions" element={<ProtectedRoute allowedRoles={['student', 'user']}><LiveSessionsPage /></ProtectedRoute>} />
+            <Route path="/student-dashboard/help" element={<ProtectedRoute allowedRoles={['student', 'user']}><HelpSupportPage /></ProtectedRoute>} />
+            
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
+            <Route path="/admin/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
             
             {/* Catch all route */}
             <Route path="*" element={<NotFound />} />

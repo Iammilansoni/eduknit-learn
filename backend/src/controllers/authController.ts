@@ -228,10 +228,10 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
     }
 
     // Verify refresh token
-    const payload = verifyRefreshToken(refreshToken);
+    const decodedPayload = verifyRefreshToken(refreshToken);
     
     // Check if refresh token exists in user's refresh tokens array
-    const user = await User.findById(payload.user.id);
+    const user = await User.findById(decodedPayload.user.id);
     if (!user || !user.refreshTokens.includes(refreshToken)) {
       res.status(401).json({
         success: false,
@@ -239,6 +239,14 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
       });
       return;
     }
+
+    // Create clean payload without expiration data
+    const payload = {
+      user: {
+        id: decodedPayload.user.id,
+        role: decodedPayload.user.role
+      }
+    };
 
     // Generate new tokens
     const newAccessToken = generateAccessToken(payload);

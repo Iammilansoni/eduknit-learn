@@ -6,6 +6,8 @@ import UserCourseProgress from '../models/UserCourseProgress';
 import Enrollment from '../models/Enrollment';
 import { Types } from 'mongoose';
 import { AuthRequest } from '../middleware/auth';
+import QuizResult from '../models/QuizResult';
+import StudentProfile from '../models/StudentProfile';
 
 export const getAllCourses = async (req: Request, res: Response) => {
     try {
@@ -380,4 +382,344 @@ export const getCourseDetails = async (req: Request, res: Response) => {
         console.error('Error fetching course details:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch course details' });
     }
+};
+
+/**
+ * Get lesson content with quiz if available
+ */
+export const getLessonContent = async (req: Request, res: Response) => {
+  try {
+    const { lessonId } = req.params;
+    const { studentId } = req.query;
+
+    if (!Types.ObjectId.isValid(lessonId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lesson ID'
+      });
+    }
+
+    const lesson = await ProgrammeLesson.findById(lessonId)
+      .populate({
+        path: 'moduleId',
+        populate: {
+          path: 'programmeId',
+          select: 'title category level'
+        }
+      })
+      .lean();
+
+    if (!lesson) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lesson not found'
+      });
+    }
+
+    // Get student's progress for this lesson
+    let lessonProgress = null;
+    if (studentId && Types.ObjectId.isValid(studentId as string)) {
+      lessonProgress = await UserCourseProgress.findOne({
+        studentId,
+        lessonId
+      }).lean();
+    }
+
+    // Get quiz if lesson has one
+    let quiz = null;
+    if (lesson.content?.quiz) {
+      quiz = {
+        id: lesson._id.toString(),
+        title: lesson.title,
+        description: lesson.description,
+        timeLimit: lesson.content.quiz.timeLimit,
+        passingScore: lesson.content.quiz.passingScore,
+        totalQuestions: lesson.content.quiz.questions?.length || 0,
+        // Don't send answers to client
+        questions: lesson.content.quiz.questions?.map((q: any) => ({
+          id: q.id,
+          question: q.question,
+          type: q.type,
+          options: q.type === 'MULTIPLE_CHOICE' ? q.options : undefined,
+          points: q.points
+        })) || []
+      };
+    }
+
+    const lessonData = {
+      ...lesson,
+      progress: lessonProgress ? {
+        completed: lessonProgress.completedAt,
+        timeSpent: lessonProgress.timeSpent,
+        lastAccessed: lessonProgress.lastAccessedAt,
+        progressPercentage: lessonProgress.progressPercentage
+      } : null,
+      quiz
+    };
+
+    res.status(200).json({
+      success: true,
+      data: lessonData
+    });
+  } catch (error) {
+    console.error('Error getting lesson content:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve lesson content'
+    });
+  }
+};
+
+/**
+ * Submit quiz answers and get results
+ */
+export const submitQuiz = async (req: Request, res: Response) => {
+  try {
+    const { lessonId } = req.params;
+    const { studentId, answers, timeSpent } = req.body;
+
+    if (!Types.ObjectId.isValid(lessonId) || !Types.ObjectId.isValid(studentId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lesson ID or student ID'
+      });
+    }
+
+    // Get lesson with quiz
+          const lesson = await ProgrammeLesson.findById(lessonId)
+        .populate('moduleId')
+        .populate('programmeId')
+        .lean();
+
+    if (!lesson || !lesson.content?.quiz) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lesson or quiz not found'
+      });
+    }
+
+    // Calculate score
+    let totalScore = 0;
+    let maxScore = 0;
+    const results = [];
+
+    for (const question of lesson.content.quiz.questions) {
+      maxScore += question.points || 1;
+      const studentAnswer = answers.find((a: any) => a.questionId === question.id.toString());
+      
+      let isCorrect = false;
+      let earnedPoints = 0;
+
+      if (studentAnswer) {
+        switch (question.type) {
+          case 'MULTIPLE_CHOICE':
+            isCorrect = studentAnswer.answer === question.correctAnswer;
+            break;
+          case 'TRUE_FALSE':
+            isCorrect = studentAnswer.answer === question.correctAnswer;
+            break;
+          case 'SHORT_ANSWER':
+            // Simple text matching (could be enhanced with fuzzy matching)
+            isCorrect = studentAnswer.answer.toLowerCase().trim() === 
+                       question.correctAnswer.toLowerCase().trim();
+            break;
+        }
+
+        earnedPoints = isCorrect ? (question.points || 1) : 0;
+        totalScore += earnedPoints;
+      }
+
+      results.push({
+        questionId: question.id,
+        question: question.question,
+        studentAnswer: studentAnswer?.answer || null,
+        correctAnswer: question.correctAnswer,
+        isCorrect,
+        earnedPoints,
+        maxPoints: question.points || 1
+      });
+    }
+
+    const percentage = Math.round((totalScore / maxScore) * 100);
+    const passed = percentage >= (lesson.content.quiz.passingScore || 70);
+
+    // Save quiz result
+    const quizResult = new QuizResult({
+      studentId,
+      lessonId,
+      programmeId: lesson.programmeId,
+      moduleId: lesson.moduleId,
+      quizId: lesson._id.toString(),
+      score: totalScore,
+      maxScore,
+      percentage,
+      isPassed: passed,
+      timeSpent,
+      answers: results,
+      completedAt: new Date(),
+      submittedAt: new Date()
+    });
+
+    await quizResult.save();
+
+    // Update lesson progress
+    const existingProgress = await UserCourseProgress.findOne({ studentId, lessonId });
+    await UserCourseProgress.findOneAndUpdate(
+      { studentId, lessonId },
+      {
+        $set: {
+          completed: true,
+          completedAt: new Date(),
+          progressPercentage: 100,
+          timeSpent: (timeSpent || 0) + (existingProgress?.timeSpent || 0)
+        }
+      },
+      { upsert: true }
+    );
+
+    // Award points for quiz completion
+    const pointsEarned = passed ? 50 : 10; // More points for passing
+    await StudentProfile.findOneAndUpdate(
+      { userId: studentId },
+      {
+        $inc: { 'gamification.totalPoints': pointsEarned },
+        $set: { 'statistics.lastActiveDate': new Date() }
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        quizResult: {
+          id: quizResult._id,
+          score: totalScore,
+          maxScore,
+          percentage,
+          passed,
+          timeSpent,
+          submittedAt: quizResult.submittedAt,
+          pointsEarned
+        },
+        results,
+        feedback: passed ? 
+          'Congratulations! You passed the quiz.' : 
+          'Keep studying! Review the material and try again.'
+      }
+    });
+  } catch (error) {
+    console.error('Error submitting quiz:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit quiz'
+    });
+  }
+};
+
+/**
+ * Get next recommended module for a student
+ */
+export const getNextModule = async (req: Request, res: Response) => {
+  try {
+    const { programmeId } = req.params;
+    const { studentId } = req.query;
+
+    if (!Types.ObjectId.isValid(programmeId) || !Types.ObjectId.isValid(studentId as string)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid programme ID or student ID'
+      });
+    }
+
+    // Get student's progress in this programme
+    const enrollment = await Enrollment.findOne({
+      studentId,
+      programmeId
+    }).populate('programmeId');
+
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Enrollment not found'
+      });
+    }
+
+    // Get all modules for this programme
+    const modules = await ProgrammeModule.find({ programmeId })
+      .sort({ orderIndex: 1 })
+      .lean();
+
+    // Find the next incomplete module
+    let nextModule = null;
+    for (const module of modules) {
+      const moduleProgress = await UserCourseProgress.findOne({
+        studentId,
+        moduleId: module._id,
+        status: { $ne: 'COMPLETED' }
+      });
+
+      if (moduleProgress || !nextModule) {
+        nextModule = module;
+        break;
+      }
+    }
+
+    if (!nextModule) {
+      // All modules completed
+      return res.status(200).json({
+        success: true,
+        data: {
+          nextModule: null,
+          message: 'All modules completed!',
+          programmeCompleted: true
+        }
+      });
+    }
+
+    // Get first incomplete lesson in the next module
+    const lessons = await ProgrammeLesson.find({ moduleId: nextModule._id })
+      .sort({ orderIndex: 1 })
+      .lean();
+
+    let nextLesson = null;
+    for (const lesson of lessons) {
+      const lessonProgress = await UserCourseProgress.findOne({
+        studentId,
+        lessonId: lesson._id,
+        status: { $ne: 'COMPLETED' }
+      });
+
+      if (lessonProgress || !nextLesson) {
+        nextLesson = lesson;
+        break;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        nextModule: {
+          id: nextModule._id,
+          title: nextModule.title,
+          description: nextModule.description,
+          orderIndex: nextModule.orderIndex,
+          estimatedDuration: nextModule.estimatedDuration
+        },
+        nextLesson: nextLesson ? {
+          id: nextLesson._id,
+          title: nextLesson.title,
+          description: nextLesson.description,
+          type: nextLesson.type,
+          duration: nextLesson.estimatedDuration,
+          orderIndex: nextLesson.orderIndex
+        } : null,
+        programmeCompleted: false
+      }
+    });
+  } catch (error) {
+    console.error('Error getting next module:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get next module'
+    });
+  }
 };

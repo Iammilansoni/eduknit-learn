@@ -17,6 +17,7 @@ export interface IQuizResult extends Document {
     timeSpent: number; // in minutes
     startedAt: Date;
     completedAt: Date;
+    submittedAt?: Date; // Alias for completedAt
     attempt: number;
     answers: {
         questionId: string;
@@ -109,6 +110,10 @@ const QuizResultSchema = new Schema<IQuizResult>(
         completedAt: {
             type: Date,
             required: true
+        },
+        submittedAt: {
+            type: Date,
+            index: true
         },
         attempt: {
             type: Number,

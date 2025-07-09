@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast'; // Still needed for useUpdateStude
 export function useStudentProfile() {
   return useQuery({
     queryKey: ['student-profile'],
-    queryFn: () => studentAPI.getProfile(),
+    queryFn: () => studentAPI.getStudentProfile(),
   });
 }
 
@@ -14,8 +14,8 @@ export function useUpdateStudentProfile() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (data: Parameters<typeof studentAPI.updateProfile>[0]) =>
-      studentAPI.updateProfile(data),
+    mutationFn: (data: Parameters<typeof studentAPI.updateStudentProfile>[0]) =>
+      studentAPI.updateStudentProfile(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student-profile'] });
       toast({
@@ -110,7 +110,7 @@ export function useUpdateLearningActivity() {
 export function useStudentAnalytics() {
   return useQuery({
     queryKey: ['student-analytics'],
-    queryFn: () => studentAPI.getAnalytics(),
+    queryFn: () => studentAPI.getStudentAnalytics(),
   });
 }
 

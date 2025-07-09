@@ -4,7 +4,7 @@ import type { AxiosError } from 'axios';
 
 // Privacy-related types
 export interface PrivacySettings {
-  profileVisibility: 'public' | 'private' | 'friends_only';
+  profileVisibility: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY';
   showProgressToOthers: boolean;
   showOnlineStatus: boolean;
   allowMessagesFromStrangers: boolean;
@@ -61,7 +61,7 @@ export interface UserDataExport {
 }
 
 export interface UpdateVisibilityData {
-  profileVisibility: 'public' | 'private' | 'friends_only';
+  profileVisibility: 'PUBLIC' | 'PRIVATE' | 'CONNECTIONS_ONLY';
   showProgressToOthers: boolean;
   showOnlineStatus: boolean;
   allowMessagesFromStrangers: boolean;

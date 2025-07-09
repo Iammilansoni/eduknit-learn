@@ -25,8 +25,8 @@ const router = express.Router();
 // All routes require authentication
 router.use(createJWTMiddleware('access'));
 
-// All routes require student role
-const requireStudent = authorizeRoles('student');
+// All routes require student or user role (user role should have student access)
+const requireStudent = authorizeRoles('student', 'user');
 
 // Validation middleware for profile updates
 const profileValidation = [

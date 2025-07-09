@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import {
   Form,
@@ -16,11 +17,32 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useUpdateStudentProfile } from '@/hooks/use-student-profile';
-import { personalInfoSchema } from '@/lib/validations/student-profile';
-import type { PersonalInfoFormData } from '@/lib/validations/student-profile';
-import { Save, Loader2, User, Phone, Mail, MapPin, Globe } from 'lucide-react';
+import { z } from 'zod';
+import { Save, Loader2, User, Phone, Mail, MapPin, GraduationCap, Globe } from 'lucide-react';
 
-interface PersonalInfoFormProps {
+const profileInfoSchema = z.object({
+  firstName: z.string().min(1, 'First name is required').max(50, 'First name must be less than 50 characters'),
+  lastName: z.string().min(1, 'Last name is required').max(50, 'Last name must be less than 50 characters'),
+  phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits').optional(),
+  alternateEmail: z.string().email('Invalid email format').optional(),
+  address: z.object({
+    street: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    postalCode: z.string().optional(),
+    country: z.string().optional(),
+    timezone: z.string().optional(),
+  }).optional(),
+  educationLevel: z.enum(['HIGH_SCHOOL', 'UNDERGRADUATE', 'GRADUATE', 'POSTGRADUATE', 'OTHER']).optional(),
+  institution: z.string().optional(),
+  fieldOfStudy: z.string().optional(),
+  graduationYear: z.number().min(1900).max(new Date().getFullYear() + 10).optional(),
+  currentlyStudying: z.boolean().optional(),
+});
+
+export type ProfileInfoFormData = z.infer<typeof profileInfoSchema>;
+
+interface ProfileInfoFormProps {
   initialData?: {
     firstName?: string;
     lastName?: string;
@@ -36,20 +58,26 @@ interface PersonalInfoFormProps {
       country?: string;
       timezone?: string;
     };
+    academicInfo?: {
+      educationLevel?: 'HIGH_SCHOOL' | 'UNDERGRADUATE' | 'GRADUATE' | 'POSTGRADUATE' | 'OTHER';
+      institution?: string;
+      fieldOfStudy?: string;
+      graduationYear?: number;
+      currentlyStudying?: boolean;
+    };
   };
 }
 
-const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({ initialData }) => {
+const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({ initialData }) => {
   const updateProfile = useUpdateStudentProfile();
 
-  const form = useForm<PersonalInfoFormData>({
-    resolver: zodResolver(personalInfoSchema),
+  const form = useForm<ProfileInfoFormData>({
+    resolver: zodResolver(profileInfoSchema),
     defaultValues: {
       firstName: initialData?.firstName || '',
       lastName: initialData?.lastName || '',
       phoneNumber: initialData?.contactInfo?.phoneNumber || '',
       alternateEmail: initialData?.contactInfo?.alternateEmail || '',
-
       address: {
         street: initialData?.address?.street || '',
         city: initialData?.address?.city || '',
@@ -58,10 +86,15 @@ const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({ initialData }) => {
         country: initialData?.address?.country || '',
         timezone: initialData?.address?.timezone || '',
       },
+      educationLevel: initialData?.academicInfo?.educationLevel || undefined,
+      institution: initialData?.academicInfo?.institution || '',
+      fieldOfStudy: initialData?.academicInfo?.fieldOfStudy || '',
+      graduationYear: initialData?.academicInfo?.graduationYear || undefined,
+      currentlyStudying: initialData?.academicInfo?.currentlyStudying || false,
     },
   });
 
-  const onSubmit = async (data: PersonalInfoFormData) => {
+  const onSubmit = async (data: ProfileInfoFormData) => {
     try {
       await updateProfile.mutateAsync({
         firstName: data.firstName,
@@ -71,13 +104,22 @@ const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({ initialData }) => {
           alternateEmail: data.alternateEmail,
         },
         address: data.address,
+        academicInfo: {
+          educationLevel: data.educationLevel,
+          institution: data.institution,
+          fieldOfStudy: data.fieldOfStudy,
+          graduationYear: data.graduationYear,
+          currentlyStudying: data.currentlyStudying,
+        },
       });
     } catch (error) {
       // Error is handled by the mutation hook
     }
   };
 
-  // Common timezones
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 50 }, (_, i) => currentYear - i + 10);
+
   const timezones = [
     { value: 'America/New_York', label: 'Eastern Time (ET)' },
     { value: 'America/Chicago', label: 'Central Time (CT)' },
@@ -139,10 +181,10 @@ const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({ initialData }) => {
       <CardHeader>
         <CardTitle className="flex items-center">
           <User className="h-5 w-5 mr-2" />
-          Personal Information
+          Profile Information
         </CardTitle>
         <CardDescription>
-          Manage your basic profile information, contact details, and address
+          Manage your basic, contact, address, and academic information
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -226,9 +268,6 @@ const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({ initialData }) => {
                   )}
                 />
               </div>
-
-              {/* Social Media Links */}
-
             </div>
 
             <Separator />
@@ -346,6 +385,126 @@ const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({ initialData }) => {
               </div>
             </div>
 
+            <Separator />
+
+            {/* Academic Information Section */}
+            <div className="space-y-4">
+              <div className="flex items-center mb-6">
+                <GraduationCap className="h-6 w-6 mr-2" />
+                <h3 className="text-xl font-semibold">Academic Information</h3>
+              </div>
+              <FormField
+                control={form.control}
+                name="educationLevel"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Education Level</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your education level" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="HIGH_SCHOOL">High School</SelectItem>
+                        <SelectItem value="UNDERGRADUATE">Undergraduate</SelectItem>
+                        <SelectItem value="GRADUATE">Graduate</SelectItem>
+                        <SelectItem value="POSTGRADUATE">Postgraduate</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="institution"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Institution</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <Input 
+                            placeholder="University/School name"
+                            className="pl-10"
+                            {...field} 
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="fieldOfStudy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Field of Study</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Computer Science, Business, etc." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="graduationYear"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Graduation Year</FormLabel>
+                      <Select 
+                        onValueChange={(value) => field.onChange(parseInt(value))} 
+                        value={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select year" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {years.map((year) => (
+                            <SelectItem key={year} value={year.toString()}>
+                              {year}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="currentlyStudying"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Currently Studying
+                        </FormLabel>
+                        <FormDescription>
+                          Check if you are currently enrolled in this program
+                        </FormDescription>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
             <div className="flex justify-end space-x-2">
               <Button
                 type="submit"
@@ -367,4 +526,4 @@ const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({ initialData }) => {
   );
 };
 
-export default PersonalInfoForm;
+export default ProfileInfoForm; 

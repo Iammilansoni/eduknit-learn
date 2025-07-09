@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
-  LayoutDashboard, 
-  GraduationCap, 
-  Calendar, 
-  ClipboardCheck, 
-  Video, 
-  HelpCircle,
-  Settings,
+  Home, 
+  BarChart3, 
+  User, 
+  Settings, 
   LogOut,
-  MenuIcon,
-  X,
-  User
+  Calendar,
+  FileText,
+  Video,
+  HelpCircle,
+  BookOpen,
+  Menu,
+  X
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -62,12 +63,12 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
   });
   
   const links = [
-    { to: '/student-dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/student-dashboard/courses', icon: GraduationCap, label: 'My Courses' },
+    { to: '/student-dashboard', icon: Home, label: 'Dashboard' },
+    { to: '/student-dashboard/courses', icon: BookOpen, label: 'My Courses' },
     { to: '/student-dashboard/calendar', icon: Calendar, label: 'Calendar' },
-    { to: '/student-dashboard/assignments', icon: ClipboardCheck, label: 'Assignments' },
+    { to: '/student-dashboard/assignments', icon: FileText, label: 'Assignments' },
     { to: '/student-dashboard/live-sessions', icon: Video, label: 'Live Sessions' },
-    { to: '/student/profile', icon: User, label: 'My Profile' },
+    { to: '/student-dashboard/analytics', icon: BarChart3, label: 'Analytics' },
     { to: '/student-dashboard/help', icon: HelpCircle, label: 'Help & Support' },
   ];
   
@@ -84,7 +85,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
           size="icon" 
           className="h-10 w-10 rounded-full bg-eduBlue-500 text-white shadow-lg hover:bg-eduBlue-600"
         >
-          {isOpen ? <X size={20} /> : <MenuIcon size={20} />}
+          {isOpen ? <X size={20} /> : <Menu size={20} />}
         </Button>
       </div>
       
@@ -138,20 +139,31 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
         </div>
         
         {/* Navigation links */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        <nav className="flex-1 space-y-2">
           {links.map((link) => (
-            <SidebarLink 
-              key={link.label}
+            <Link
+              key={link.to}
               to={link.to}
-              icon={link.icon}
-              label={link.label}
-              active={location.pathname === link.to}
-            />
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                location.pathname === link.to || location.pathname.startsWith(link.to + '/')
+                  ? 'bg-eduBlue-100 text-eduBlue-700' 
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <link.icon className="h-4 w-4" />
+              {link.label}
+            </Link>
           ))}
-        </div>
+        </nav>
         
-        {/* Account menu */}
-        <div className="p-3 border-t border-gray-200 dark:border-gray-800 space-y-1">
+        {/* Account menu - Bottom left */}
+        <div className="p-3 border-t border-gray-200 dark:border-gray-800 space-y-1 mt-auto">
+          <SidebarLink 
+            to="/student/profile"
+            icon={User}
+            label="My Profile"
+            active={location.pathname === "/student/profile"}
+          />
           <SidebarLink 
             to="/student-dashboard/settings"
             icon={Settings}

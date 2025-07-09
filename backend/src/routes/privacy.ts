@@ -61,7 +61,7 @@ router.get('/settings', authenticateJWT, async (req: AuthRequest, res: Response)
 router.put('/visibility', [
     authenticateJWT,
     body('visibility')
-        .isIn(['public', 'private', 'contacts_only'])
+        .isIn(['PUBLIC', 'PRIVATE', 'CONNECTIONS_ONLY'])
         .withMessage('Invalid visibility setting'),
     validateRequest
 ], async (req: AuthRequest, res: Response) => {
@@ -91,15 +91,98 @@ router.put('/visibility', [
 });
 
 /**
+ * PUT /api/privacy/settings
+ * Update all privacy settings at once
+ */
+router.put('/settings', [
+    authenticateJWT,
+    body('profileVisibility')
+        .optional()
+        .isIn(['PUBLIC', 'PRIVATE', 'CONNECTIONS_ONLY'])
+        .withMessage('Invalid profile visibility setting'),
+    body('allowMessaging')
+        .optional()
+        .isBoolean()
+        .withMessage('allowMessaging must be a boolean'),
+    body('allowConnectionRequests')
+        .optional()
+        .isBoolean()
+        .withMessage('allowConnectionRequests must be a boolean'),
+    body('dataProcessingConsent')
+        .optional()
+        .isBoolean()
+        .withMessage('dataProcessingConsent must be a boolean'),
+    body('marketingConsent')
+        .optional()
+        .isBoolean()
+        .withMessage('marketingConsent must be a boolean'),
+    body('showProgress')
+        .optional()
+        .isBoolean()
+        .withMessage('showProgress must be a boolean'),
+    body('showAchievements')
+        .optional()
+        .isBoolean()
+        .withMessage('showAchievements must be a boolean'),
+    validateRequest
+], async (req: AuthRequest, res: Response) => {
+    try {
+        const {
+            profileVisibility,
+            allowMessaging,
+            allowConnectionRequests,
+            dataProcessingConsent,
+            marketingConsent,
+            showProgress,
+            showAchievements
+        } = req.body;
+        
+        const user = await PrivacyService.updatePrivacySettings(
+            req.user!.id,
+            {
+                profileVisibility,
+                allowMessaging,
+                allowConnectionRequests,
+                dataProcessingConsent,
+                marketingConsent,
+                showProgress,
+                showAchievements
+            },
+            req.user!.id,
+            req
+        );
+        
+        res.json({
+            success: true,
+            message: 'Privacy settings updated successfully',
+            data: {
+                profileVisibility: user.profileVisibility,
+                allowMessaging: user.allowMessaging,
+                allowConnectionRequests: user.allowConnectionRequests,
+                dataProcessingConsent: user.dataProcessingConsent,
+                marketingConsent: user.marketingConsent,
+                showProgress: user.showProgress,
+                showAchievements: user.showAchievements
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to update privacy settings'
+        });
+    }
+});
+
+/**
  * PUT /api/privacy/consent
  * Update consent settings
  */
 router.put('/consent', [
     authenticateJWT,
-    body('dataRetentionConsent')
+    body('dataProcessingConsent')
         .optional()
         .isBoolean()
-        .withMessage('dataRetentionConsent must be a boolean'),
+        .withMessage('dataProcessingConsent must be a boolean'),
     body('marketingConsent')
         .optional()
         .isBoolean()
@@ -107,11 +190,11 @@ router.put('/consent', [
     validateRequest
 ], async (req: AuthRequest, res: Response) => {
     try {
-        const { dataRetentionConsent, marketingConsent } = req.body;
+        const { dataProcessingConsent, marketingConsent } = req.body;
         
         const user = await PrivacyService.updateConsentSettings(
             req.user!.id,
-            { dataRetentionConsent, marketingConsent },
+            { dataProcessingConsent, marketingConsent },
             req.user!.id,
             req
         );
@@ -120,7 +203,7 @@ router.put('/consent', [
             success: true,
             message: 'Consent settings updated successfully',
             data: {
-                dataRetentionConsent: user.dataRetentionConsent,
+                dataProcessingConsent: user.dataProcessingConsent,
                 marketingConsent: user.marketingConsent
             }
         });
