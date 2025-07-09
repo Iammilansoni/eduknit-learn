@@ -5,7 +5,6 @@ import { cn } from '@/lib/utils';
 import { Bell, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import ProfileAvatar from '@/components/common/ProfileAvatar';
 import { useAuth } from '@/contexts/AuthContextUtils';
 
 interface DashboardLayoutProps {

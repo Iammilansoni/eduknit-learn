@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { 
   LayoutDashboard, 
   GraduationCap, 
@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/contexts/AuthContextUtils';
-import ProfileAvatar from '@/components/common/ProfileAvatar';
+import { studentAPI } from '@/services/api';
 
 interface SidebarLinkProps {
   to: string;
@@ -53,6 +53,13 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
+  
+  // Query for profile photo to automatically update when changed
+  const { data: photoData } = useQuery({
+    queryKey: ['student-profile-photo'],
+    queryFn: studentAPI.getProfilePhotoUrl,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
   
   const links = [
     { to: '/student-dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -109,20 +116,22 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
         
         {/* User profile */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center space-x-3">
-          <ProfileAvatar 
-            currentUser={{
-              firstName: user?.firstName,
-              lastName: user?.lastName,
-              username: user?.username,
-              email: user?.email,
-            }}
-            size="md"
-          />
-          <div className="flex flex-col">
-            <span className="font-medium text-gray-900 dark:text-white">
+          <Avatar className="h-12 w-12 flex-shrink-0">
+            <AvatarImage 
+              src={photoData?.data?.profilePhotoUrl || user?.profilePicture} 
+              alt={user?.firstName || user?.username || 'User'} 
+              className="object-cover object-center h-full w-full rounded-full" 
+            />
+            <AvatarFallback className="bg-eduBlue-500 text-white">
+              {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 
+               user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col min-w-0">
+            <span className="font-medium text-gray-900 dark:text-white truncate">
               {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username || 'Guest User'}
             </span>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
               {user?.email || 'Sign in to access all features'}
             </span>
           </div>

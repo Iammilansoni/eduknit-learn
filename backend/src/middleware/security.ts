@@ -29,7 +29,9 @@ export const configureSecurity = (app: Express) => {
   // General API rate limiting
   const apiLimiter = rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
+    max: process.env.NODE_ENV === 'production' 
+      ? parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100') 
+      : 1000, // 1000 requests in dev/test, configurable in production (default 100)
     message: {
       error: 'Too many requests from this IP, please try again later.',
     },
@@ -41,10 +43,12 @@ export const configureSecurity = (app: Express) => {
   // Stricter rate limiting for auth routes (more lenient in development)
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 50 : 5, // 50 in dev, 5 in production
+    max: process.env.NODE_ENV === 'production' ? 5 : 100, // 100 in dev/test, 5 in production
     message: {
       error: 'Too many authentication attempts, please try again later.',
     },
+    standardHeaders: true,
+    legacyHeaders: false,
   });
   app.use('/api/auth/', authLimiter);
 

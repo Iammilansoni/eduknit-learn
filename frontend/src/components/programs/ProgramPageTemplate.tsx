@@ -1,5 +1,5 @@
-
 import React, { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,6 +9,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, ArrowRight, BookOpen, Play, FileText } from 'lucide-react';
 import { CalendarDays, Clock } from 'lucide-react';
 import { motion } from "framer-motion";
+import { toast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContextUtils';
+import { useEnrollment } from '@/hooks/useCourseProgress';
+import EnrollmentSuccessModal from '@/components/enrollment/EnrollmentSuccessModal';
 
 interface ProgramModule {
   id: string;
@@ -74,6 +78,84 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
   faqs
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { enrollInCourse, loading: enrollLoading, error: enrollError } = useEnrollment();
+
+  // Extract course slug from current URL
+  const courseSlug = location.pathname.split('/programs/')[1] || '';
+  
+  // Map course slugs to programme IDs (you'll need to replace these with actual IDs from your database)
+  const courseSlugToId: Record<string, string> = {
+    'communication-skills': '674b5e3d1234567890abcdef', // Replace with actual Programme ID
+    'digital-marketing': '674b5e3d1234567890abcdeg',   // Replace with actual Programme ID
+    'basics-of-ai': '674b5e3d1234567890abcdeh',        // Replace with actual Programme ID
+    'ai-prompt-crafting': '674b5e3d1234567890abcdei',  // Replace with actual Programme ID
+    'data-analytics': '674b5e3d1234567890abcdej',      // Replace with actual Programme ID
+    'bioskills': '674b5e3d1234567890abcdek',           // Replace with actual Programme ID
+    'decision-making': '674b5e3d1234567890abcdel'      // Replace with actual Programme ID
+  };
+
+  const programmeId = courseSlugToId[courseSlug];
+
+  const handleEnrollNow = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to enroll in this course.",
+        variant: "destructive",
+      });
+      navigate('/login', { state: { from: location.pathname } });
+      return;
+    }
+
+    if (!programmeId) {
+      toast({
+        title: "Error",
+        description: "Course not found. Please try again later.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setEnrollmentLoading(true);
+      await enrollInCourse(programmeId);
+      
+      setShowSuccessModal(true);
+      
+      toast({
+        title: "Enrollment Successful!",
+        description: `You've been enrolled in ${title}`,
+      });
+    } catch (error: unknown) {
+      console.error('Enrollment error:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      
+      if (errorMessage.includes('Already enrolled')) {
+        toast({
+          title: "Already Enrolled",
+          description: "You're already enrolled in this course. Check your dashboard to continue learning.",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Enrollment Failed",
+          description: errorMessage || "Failed to enroll in the course. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setEnrollmentLoading(false);
+    }
+  };
+
+  const isLoading = enrollmentLoading || enrollLoading;
 
   return (
     <Layout>
@@ -104,8 +186,12 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
           </div>
 
 <div className="flex gap-x-4">
-  <Button className="bg-orange-500 hover:bg-orange-600 text-white text-sm px-6 py-2 rounded-full">
-    Enroll Now
+  <Button 
+    className="bg-orange-500 hover:bg-orange-600 text-white text-sm px-6 py-2 rounded-full disabled:opacity-50"
+    onClick={handleEnrollNow}
+    disabled={isLoading}
+  >
+    {isLoading ? 'Enrolling...' : 'Enroll Now'}
   </Button>
   <Button variant="outline" className="bg-orange-500 hover:bg-orange-600 text-white text-sm px-6 py-2 rounded-full">
     Download Syllabus
@@ -393,8 +479,12 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
               Join students across the globe who are building their future today.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <Button className="bg-eduBlue-600 hover:bg-eduBlue-700 text-white px-8 py-2 text-lg">
-                Enroll Now
+              <Button 
+                className="bg-eduBlue-600 hover:bg-eduBlue-700 text-white px-8 py-2 text-lg disabled:opacity-50"
+                onClick={handleEnrollNow}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Enrolling...' : 'Enroll Now'}
               </Button>
               <Button variant="outline" className="border-eduBlue-600 text-eduBlue-600 hover:bg-eduBlue-50 px-8 py-2 text-lg">
                 Schedule a Consultation
@@ -403,6 +493,14 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
           </div>
         </section>
       </div>
+
+      {/* Enrollment Success Modal */}
+      <EnrollmentSuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        courseTitle={title}
+        courseSlug={courseSlug}
+      />
     </Layout>
   );
 };

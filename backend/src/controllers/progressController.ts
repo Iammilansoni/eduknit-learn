@@ -8,6 +8,7 @@ import ProgrammeLesson from '../models/ProgrammeLesson';
 import ProgrammeModule from '../models/ProgrammeModule';
 import { AuthRequest } from '../middleware/auth';
 import ProgressService from '../services/progressService';
+import LessonCompletion from '../models/LessonCompletion';
 
 /**
  * Get comprehensive progress for a student's enrolled courses
@@ -474,8 +475,16 @@ export const getQuizResults = async (req: AuthRequest, res: Response) => {
 export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
     try {
         const { studentId } = req.params;
+        const userId = req.user?.id;
 
-        // Validate studentId
+        // Ensure user can only access their own data or has admin privileges
+        if (userId !== studentId && req.user?.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
         if (!Types.ObjectId.isValid(studentId)) {
             return res.status(400).json({
                 success: false,
@@ -483,15 +492,129 @@ export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        // Check if user is authorized to view this data
-        if (req.user?.id !== studentId && req.user?.role !== 'admin') {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied'
-            });
+        // Get all enrollments for the student
+        const enrollments = await Enrollment.find({ studentId })
+            .populate('programmeId', 'title category durationDays totalLessons')
+            .lean();
+
+        // Get lesson completions
+        const allCompletions = await LessonCompletion.find({ userId: studentId }).lean();
+
+        // Get quiz results
+        const quizResults = await QuizResult.find({ userId: studentId }).lean();
+
+        // Calculate dashboard metrics
+        const enrolledCoursesCount = enrollments.length;
+        const completedCoursesCount = enrollments.filter(e => e.status === 'COMPLETED').length;
+        
+        // Calculate overall progress
+        let totalProgress = 0;
+        let upcomingDeadlines: Array<{
+            courseTitle: string;
+            daysLeft: number;
+            expectedDate: Date;
+        }> = [];
+        let totalStudyTime = 0;
+
+        const courseProgressList = enrollments.map(enrollment => {
+            const programme = enrollment.programmeId as any;
+            const courseCompletions = allCompletions.filter(c => c.courseId.toString() === programme._id.toString());
+            
+            const actualProgress = (courseCompletions.length / (programme.totalLessons || 1)) * 100;
+            totalProgress += actualProgress;
+
+            // Calculate study time from completions
+            const courseStudyTime = courseCompletions.reduce((sum, c) => sum + (c.timeSpent || 0), 0);
+            totalStudyTime += courseStudyTime;
+
+            // Calculate expected completion date
+            const enrollmentDate = new Date(enrollment.enrollmentDate);
+            const expectedCompletionDate = new Date(enrollmentDate.getTime() + (programme.durationDays || 30) * 24 * 60 * 60 * 1000);
+            
+            // Check if deadline is within next 7 days
+            const now = new Date();
+            const daysUntilDeadline = Math.ceil((expectedCompletionDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntilDeadline <= 7 && daysUntilDeadline > 0 && enrollment.status !== 'COMPLETED') {
+                upcomingDeadlines.push({
+                    courseTitle: programme.title,
+                    daysLeft: daysUntilDeadline,
+                    expectedDate: expectedCompletionDate
+                });
+            }
+
+            return {
+                courseId: programme._id,
+                title: programme.title,
+                progress: Math.round(actualProgress),
+                status: enrollment.status,
+                category: programme.category
+            };
+        });
+
+        const overallProgress = enrollments.length > 0 ? totalProgress / enrollments.length : 0;
+
+        // Calculate learning streaks (simplified - consecutive days with lesson completions)
+        const sortedCompletions = allCompletions
+            .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+        
+        let currentStreak = 0;
+        let longestStreak = 0;
+        let tempStreak = 0;
+        let lastDate = null;
+
+        for (const completion of sortedCompletions) {
+            const completionDate = new Date(completion.completedAt);
+            const dateString = completionDate.toDateString();
+            
+            if (lastDate === null) {
+                tempStreak = 1;
+            } else {
+                const daysDiff = (new Date(dateString).getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24);
+                if (daysDiff === 1) {
+                    tempStreak++;
+                } else {
+                    longestStreak = Math.max(longestStreak, tempStreak);
+                    tempStreak = 1;
+                }
+            }
+            lastDate = dateString;
+        }
+        
+        longestStreak = Math.max(longestStreak, tempStreak);
+        
+        // Check if streak continues to today
+        if (lastDate) {
+            const today = new Date().toDateString();
+            const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+            if (lastDate === today || lastDate === yesterday) {
+                currentStreak = tempStreak;
+            }
         }
 
-        const dashboardData = await ProgressService.getProgressDashboard(studentId);
+        const dashboardData = {
+            studentId,
+            metrics: {
+                enrolledCoursesCount,
+                completedCoursesCount,
+                overallProgress: Math.round(overallProgress),
+                totalStudyTimeHours: Math.round(totalStudyTime / 60), // Convert minutes to hours
+                currentStreak,
+                longestStreak,
+                totalQuizzes: quizResults.length,
+                averageQuizScore: quizResults.length > 0 ? 
+                    Math.round(quizResults.reduce((sum, q) => sum + (q.score / q.maxScore * 100), 0) / quizResults.length) : 0
+            },
+            courses: courseProgressList,
+            upcomingDeadlines: upcomingDeadlines.sort((a, b) => a.daysLeft - b.daysLeft),
+            recentActivity: sortedCompletions.slice(-10).reverse().map(completion => ({
+                type: 'lesson_completion',
+                courseId: completion.courseId,
+                lessonId: completion.lessonId,
+                completedAt: completion.completedAt,
+                timeSpent: completion.timeSpent
+            }))
+        };
 
         res.status(200).json({
             success: true,
@@ -501,319 +624,111 @@ export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
         console.error('Error getting progress dashboard:', error);
         res.status(500).json({
             success: false,
-            message: 'Failed to retrieve progress dashboard'
+            message: 'Failed to retrieve dashboard data'
         });
     }
 };
 
 /**
- * Get detailed analytics for a specific course
+ * Get smart progress calculation for a user's course with deviation tracking
  */
-export const getCourseAnalytics = async (req: AuthRequest, res: Response) => {
+export const getUserSmartProgress = async (req: AuthRequest, res: Response) => {
     try {
-        const { studentId, programmeId } = req.params;
+        const { courseId } = req.params;
+        const userId = req.user?.id;
 
-        // Validate IDs
-        if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(programmeId)) {
-            return res.status(400).json({
+        if (!userId) {
+            return res.status(401).json({
                 success: false,
-                message: 'Invalid student ID or programme ID'
+                message: 'Authentication required'
             });
         }
 
-        const courseData = await ProgressService.getCourseProgressData(studentId, programmeId);
-
-        res.status(200).json({
-            success: true,
-            data: courseData
-        });
-    } catch (error) {
-        console.error('Error getting course analytics:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to retrieve course analytics'
-        });
-    }
-};
-
-/**
- * Get the next module to complete based on current progress and prerequisites
- */
-export const getNextModule = async (req: AuthRequest, res: Response) => {
-    try {
-        const { studentId, programmeId } = req.params;
-
-        // Validate IDs
-        if (!Types.ObjectId.isValid(studentId) || !Types.ObjectId.isValid(programmeId)) {
+        if (!Types.ObjectId.isValid(courseId)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid student ID or programme ID'
+                message: 'Invalid course ID'
             });
         }
 
-        // Get student's enrollment
-        const enrollment = await Enrollment.findOne({
-            studentId,
-            programmeId,
-            status: { $in: ['ACTIVE', 'IN_PROGRESS'] }
-        });
+        // Get enrollment
+        const enrollment = await Enrollment.findOne({ 
+            studentId: userId, 
+            programmeId: courseId 
+        }).lean();
 
         if (!enrollment) {
             return res.status(404).json({
                 success: false,
-                message: 'Student not enrolled in this programme'
+                message: 'Enrollment not found'
             });
         }
 
-        // Get all modules for the programme
-        const modules = await ProgrammeModule.find({
-            programmeId,
-            isActive: true
-        }).sort({ orderIndex: 1 }).populate('prerequisites');
-
-        // Get completed modules
-        const completedLessons = await UserCourseProgress.find({
-            studentId,
-            programmeId,
-            status: 'COMPLETED'
-        }).populate('moduleId');
-
-        const completedModuleIds = new Set();
-        completedLessons.forEach(progress => {
-            if (progress.moduleId) {
-                completedModuleIds.add((progress.moduleId as any)._id.toString());
-            }
-        });
-
-        // Find next module based on prerequisites and completion status
-        let nextModule = null;
-        for (const module of modules) {
-            const moduleId = (module._id as Types.ObjectId).toString();
-            
-            // Skip if already completed
-            if (completedModuleIds.has(moduleId)) {
-                continue;
-            }
-
-            // Check if all prerequisites are met
-            const prerequisitesComplete = module.prerequisites.every(prereqId => 
-                completedModuleIds.has(prereqId.toString())
-            );
-
-            if (prerequisitesComplete) {
-                // Get lessons count for this module
-                const lessonsInModule = await ProgrammeLesson.countDocuments({
-                    moduleId: module._id,
-                    isActive: true
-                });
-
-                // Get completed lessons in this module
-                const completedLessonsInModule = await UserCourseProgress.countDocuments({
-                    studentId,
-                    moduleId: module._id,
-                    status: 'COMPLETED'
-                });
-
-                const moduleProgress = lessonsInModule > 0 ? 
-                    (completedLessonsInModule / lessonsInModule) * 100 : 0;
-
-                nextModule = {
-                    id: module._id,
-                    title: module.title,
-                    description: module.description,
-                    estimatedDuration: module.estimatedDuration,
-                    dueDate: module.dueDate,
-                    orderIndex: module.orderIndex,
-                    totalLessons: lessonsInModule,
-                    completedLessons: completedLessonsInModule,
-                    progress: Math.round(moduleProgress),
-                    isStarted: completedLessonsInModule > 0
-                };
-                break;
-            }
-        }
-
-        if (!nextModule) {
-            // All modules completed or no available modules
-            const totalModules = modules.length;
-            const completedModules = Array.from(completedModuleIds).length;
-
-            return res.json({
-                success: true,
-                data: {
-                    nextModule: null,
-                    allCompleted: completedModules === totalModules,
-                    totalModules,
-                    completedModules,
-                    message: completedModules === totalModules ? 
-                        'Congratulations! You have completed all modules.' :
-                        'No modules available to start. Please check prerequisites.'
-                }
-            });
-        }
-
-        res.json({
-            success: true,
-            data: {
-                nextModule,
-                allCompleted: false
-            }
-        });
-
-    } catch (error) {
-        console.error('Error fetching next module:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error'
-        });
-    }
-};
-
-/**
- * Get learning statistics and history for a student
- */
-export const getLearningStatistics = async (req: AuthRequest, res: Response) => {
-    try {
-        const { studentId } = req.params;
-        const { programmeId, timeframe = '30' } = req.query;
-
-        // Validate studentId
-        if (!Types.ObjectId.isValid(studentId)) {
-            return res.status(400).json({
+        // Get course details with duration
+        const programme = await Programme.findById(courseId).lean();
+        if (!programme) {
+            return res.status(404).json({
                 success: false,
-                message: 'Invalid student ID'
+                message: 'Course not found'
             });
         }
 
-        const days = parseInt(timeframe as string) || 30;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
+        // Get lesson completions
+        const completions = await LessonCompletion.find({
+            userId,
+            courseId
+        }).lean();
 
-        let matchCriteria: any = {
-            studentId: new Types.ObjectId(studentId),
-            lastAccessedAt: { $gte: startDate }
-        };
+        // Calculate smart progress metrics
+        const enrollmentDate = new Date(enrollment.enrollmentDate);
+        const now = new Date();
+        const daysElapsed = Math.floor((now.getTime() - enrollmentDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        const totalLessons = programme.totalLessons || 1;
+        const totalCourseDays = programme.durationDays || 30;
+        const lessonsCompleted = completions.length;
 
-        if (programmeId && Types.ObjectId.isValid(programmeId as string)) {
-            matchCriteria.programmeId = new Types.ObjectId(programmeId as string);
+        // Smart progress formulas
+        const actualProgress = (lessonsCompleted / totalLessons) * 100;
+        const expectedProgress = Math.min(100, (daysElapsed / totalCourseDays) * 100);
+        const deviation = actualProgress - expectedProgress;
+
+        // Deviation labels
+        let label: string;
+        if (deviation > 5) {
+            label = 'Ahead';
+        } else if (deviation < -5) {
+            label = 'Behind';
+        } else {
+            label = 'On Track';
         }
 
-        // Aggregate statistics
-        const stats = await UserCourseProgress.aggregate([
-            { $match: matchCriteria },
-            {
-                $group: {
-                    _id: null,
-                    totalLessonsCompleted: {
-                        $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
-                    },
-                    totalTimeSpent: { $sum: '$timeSpent' }, // in minutes
-                    totalLessonsStarted: {
-                        $sum: { $cond: [{ $in: ['$status', ['IN_PROGRESS', 'COMPLETED']] }, 1, 0] }
-                    },
-                    averageProgress: { $avg: '$progressPercentage' },
-                    totalAttempts: { $sum: '$attempts' }
-                }
-            }
-        ]);
-
-        // Get daily activity for the chart
-        const dailyActivity = await UserCourseProgress.aggregate([
-            { $match: matchCriteria },
-            {
-                $group: {
-                    _id: {
-                        date: { $dateToString: { format: '%Y-%m-%d', date: '$lastAccessedAt' } }
-                    },
-                    lessonsCompleted: {
-                        $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
-                    },
-                    timeSpent: { $sum: '$timeSpent' },
-                    uniqueLessons: { $addToSet: '$lessonId' }
-                }
-            },
-            {
-                $project: {
-                    date: '$_id.date',
-                    lessonsCompleted: 1,
-                    timeSpent: 1,
-                    uniqueLessonsCount: { $size: '$uniqueLessons' }
-                }
-            },
-            { $sort: { date: 1 } }
-        ]);
-
-        // Get course-wise breakdown if no specific programme
-        let courseBreakdown = [];
-        if (!programmeId) {
-            courseBreakdown = await UserCourseProgress.aggregate([
-                { 
-                    $match: { 
-                        studentId: new Types.ObjectId(studentId),
-                        lastAccessedAt: { $gte: startDate }
-                    } 
-                },
-                {
-                    $group: {
-                        _id: '$programmeId',
-                        completedLessons: {
-                            $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
-                        },
-                        totalTimeSpent: { $sum: '$timeSpent' },
-                        averageProgress: { $avg: '$progressPercentage' }
-                    }
-                },
-                {
-                    $lookup: {
-                        from: 'programmes',
-                        localField: '_id',
-                        foreignField: '_id',
-                        as: 'programme'
-                    }
-                },
-                {
-                    $project: {
-                        programmeTitle: { $arrayElemAt: ['$programme.title', 0] },
-                        completedLessons: 1,
-                        totalTimeSpent: 1,
-                        averageProgress: { $round: ['$averageProgress', 2] }
-                    }
-                }
-            ]);
-        }
-
-        const defaultStats = {
-            totalLessonsCompleted: 0,
-            totalTimeSpent: 0,
-            totalLessonsStarted: 0,
-            averageProgress: 0,
-            totalAttempts: 0
+        const progressData = {
+            courseId,
+            courseName: programme.title,
+            totalLessons,
+            lessonsCompleted,
+            daysElapsed,
+            totalCourseDays,
+            actualProgress: Math.round(actualProgress * 100) / 100,
+            expectedProgress: Math.round(expectedProgress * 100) / 100,
+            deviation: Math.round(deviation * 100) / 100,
+            label,
+            enrollmentDate: enrollment.enrollmentDate,
+            lastActivity: completions.length > 0 ? 
+                completions.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0].completedAt : 
+                enrollment.enrollmentDate
         };
 
-        const result = stats.length > 0 ? stats[0] : defaultStats;
-
-        res.json({
+        res.status(200).json({
             success: true,
-            data: {
-                summary: {
-                    totalLessonsCompleted: result.totalLessonsCompleted,
-                    totalTimeSpent: Math.round(result.totalTimeSpent), // minutes
-                    totalHoursSpent: Math.round((result.totalTimeSpent / 60) * 100) / 100, // hours
-                    totalLessonsStarted: result.totalLessonsStarted,
-                    averageProgress: Math.round(result.averageProgress * 100) / 100,
-                    totalAttempts: result.totalAttempts,
-                    timeframe: days
-                },
-                dailyActivity,
-                courseBreakdown: programmeId ? [] : courseBreakdown
-            }
+            data: progressData
         });
-
     } catch (error) {
-        console.error('Error fetching learning statistics:', error);
+        console.error('Error getting smart progress:', error);
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Failed to retrieve smart progress data'
         });
     }
 };

@@ -332,20 +332,11 @@ const StudentProfilePage = () => {
               </div>
             </TabsContent>
 
-            {/* Settings Tab - Contains profile photo management, privacy and security settings */}
+            {/* Settings Tab - Contains privacy and security settings only */}
             <TabsContent value="settings" className="p-6">
               <div className="space-y-8">
-                {/* Profile Photo Management Section */}
-                <div>
-                  <div className="flex items-center mb-6">
-                    <Camera className="h-6 w-6 mr-2" />
-                    <h3 className="text-xl font-semibold">Profile Photo</h3>
-                  </div>
-                  <ProfilePhotoUpload currentUser={user} />
-                </div>
-
                 {/* Privacy & Security Settings Section */}
-                <div className="border-t pt-8">
+                <div>
                   <div className="flex items-center mb-6">
                     <Shield className="h-6 w-6 mr-2" />
                     <h3 className="text-xl font-semibold">Privacy & Security</h3>

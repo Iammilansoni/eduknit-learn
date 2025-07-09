@@ -8,9 +8,7 @@ import {
     recordQuizResults,
     getQuizResults,
     getProgressDashboard,
-    getCourseAnalytics,
-    getNextModule,
-    getLearningStatistics
+    getUserSmartProgress
 } from '../controllers/progressController';
 
 const router = express.Router();
@@ -38,7 +36,7 @@ router.get('/course/:studentId/:programmeId', getCourseProgress);
  * @desc Get the next module to complete based on prerequisites and progress
  * @access Private
  */
-router.get('/next-module/:studentId/:programmeId', getNextModule);
+// router.get('/next-module/:studentId/:programmeId', getNextModule); // TODO: Implement
 
 /**
  * @route GET /api/progress/statistics/:studentId
@@ -46,7 +44,7 @@ router.get('/next-module/:studentId/:programmeId', getNextModule);
  * @query programmeId (optional), timeframe (optional, default 30 days)
  * @access Private
  */
-router.get('/statistics/:studentId', getLearningStatistics);
+// router.get('/statistics/:studentId', getLearningStatistics); // TODO: Implement
 
 /**
  * @route POST /api/progress/lesson/complete
@@ -91,6 +89,13 @@ router.get('/dashboard/:studentId', getProgressDashboard);
  * @desc Get detailed analytics for a specific course
  * @access Private
  */
-router.get('/analytics/:studentId/:programmeId', getCourseAnalytics);
+// router.get('/analytics/:studentId/:programmeId', getCourseAnalytics); // TODO: Implement
+
+/**
+ * @route GET /api/progress/smart/:courseId
+ * @desc Get smart progress calculation with deviation tracking for a specific course
+ * @access Private
+ */
+router.get('/smart/:courseId', getUserSmartProgress);
 
 export default router;

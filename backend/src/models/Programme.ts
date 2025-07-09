@@ -21,6 +21,7 @@ export interface IProgramme extends Document {
     totalModules: number;
     totalLessons: number;
     estimatedDuration: number; // in hours
+    durationDays: number; // Total course duration in days for progress calculation
     certificateAwarded: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -122,6 +123,12 @@ const ProgrammeSchema = new Schema<IProgramme>(
             type: Number,
             required: true,
             min: 1 // in hours
+        },
+        durationDays: {
+            type: Number,
+            required: true,
+            min: 1, // Total course duration in days for progress calculation
+            default: 30
         },
         certificateAwarded: {
             type: Boolean,

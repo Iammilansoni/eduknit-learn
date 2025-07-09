@@ -730,6 +730,164 @@ export const studentAPI = {
   },
 };
 
+// Progress API endpoints
+export const progressApi = {
+  // Get dashboard data for a student
+  getDashboardData: async (studentId: string): Promise<ApiResponse<{
+    courses: Array<{
+      courseId: string;
+      title: string;
+      progress: number;
+      status: 'IN_PROGRESS' | 'COMPLETED' | 'NOT_STARTED';
+      category: string;
+      enrollmentDate?: string;
+    }>;
+    metrics: {
+      enrolledCoursesCount: number;
+      completedCoursesCount: number;
+      overallProgress: number;
+      totalStudyTimeHours: number;
+      currentStreak: number;
+      longestStreak: number;
+      totalQuizzes: number;
+      averageQuizScore: number;
+    };
+    upcomingDeadlines: Array<{
+      courseTitle: string;
+      expectedDate: string;
+      daysLeft: number;
+    }>;
+    recentActivity: Array<{
+      completedAt: string;
+      timeSpent?: number;
+      courseTitle?: string;
+      lessonTitle?: string;
+    }>;
+  }>> => {
+    const response = await api.get(`/progress/dashboard/${studentId}`);
+    return response.data;
+  },
+
+  // Get smart progress for a course
+  getSmartProgress: async (courseId: string): Promise<ApiResponse<{
+    courseId: string;
+    courseName: string;
+    totalLessons: number;
+    lessonsCompleted: number;
+    daysElapsed: number;
+    totalCourseDays: number;
+    actualProgress: number;
+    expectedProgress: number;
+    deviation: number;
+    label: 'Ahead' | 'On Track' | 'Behind';
+    enrollmentDate: string;
+    lastActivity: string;
+  }>> => {
+    const response = await api.get(`/progress/smart/${courseId}`);
+    return response.data;
+  },
+
+  // Get course progress details
+  getCourseProgress: async (studentId: string, programmeId: string): Promise<ApiResponse<CourseProgressResponse>> => {
+    const response = await api.get(`/progress/course/${studentId}/${programmeId}`);
+    return response.data;
+  },
+
+  // Mark lesson as complete
+  markLessonComplete: async (data: {
+    studentId: string;
+    programmeId: string;
+    moduleId: string;
+    lessonId: string;
+    timeSpent?: number;
+  }): Promise<ApiResponse<LessonCompletionResponse>> => {
+    const response = await api.post('/progress/lesson/complete', data);
+    return response.data;
+  },
+
+  // Submit quiz results
+  submitQuiz: async (data: {
+    studentId: string;
+    programmeId: string;
+    moduleId: string;
+    lessonId: string;
+    quizId: string;
+    score: number;
+    maxScore: number;
+    timeSpent: number;
+    answers: Array<{
+      questionId: string;
+      answer: string | number | string[];
+    }>;
+    passingScore: number;
+  }): Promise<ApiResponse<QuizSubmissionResponse>> => {
+    const response = await api.post('/progress/quiz/submit', data);
+    return response.data;
+  },
+
+  // Enroll in a program
+  enrollInProgram: async (programmeId: string): Promise<ApiResponse<EnrollmentResponse>> => {
+    const response = await api.post('/student/enroll', { programmeId });
+    return response.data;
+  },
+};
+
+// Course Content API endpoints
+export const courseApi = {
+  // Get all available courses
+  getAllCourses: async (): Promise<ApiResponse<CourseResponse[]>> => {
+    const response = await api.get('/courses');
+    return response.data;
+  },
+
+  // Get course details
+  getCourseDetails: async (programmeId: string): Promise<ApiResponse<CourseResponse>> => {
+    const response = await api.get(`/courses/${programmeId}`);
+    return response.data;
+  },
+
+  // Get modules for a course
+  getModulesForCourse: async (programmeId: string): Promise<ApiResponse<ModuleResponse[]>> => {
+    const response = await api.get(`/courses/${programmeId}/modules`);
+    return response.data;
+  },
+
+  // Get lessons for a module
+  getLessonsForModule: async (moduleId: string): Promise<ApiResponse<LessonResponse[]>> => {
+    const response = await api.get(`/modules/${moduleId}/lessons`);
+    return response.data;
+  },
+
+  // Get lesson details
+  getLessonDetails: async (lessonId: string): Promise<ApiResponse<LessonResponse>> => {
+    const response = await api.get(`/lessons/${lessonId}`);
+    return response.data;
+  },
+
+  // Get my enrolled courses
+  getMyCourses: async (): Promise<ApiResponse<CourseResponse[]>> => {
+    const response = await api.get('/course/my-courses');
+    return response.data;
+  },
+
+  // Get enrolled course details
+  getEnrolledCourseDetail: async (courseId: string): Promise<ApiResponse<CourseResponse>> => {
+    const response = await api.get(`/course/my-course/${courseId}`);
+    return response.data;
+  },
+
+  // Update course progress
+  updateCourseProgress: async (data: {
+    lessonId: string;
+    progressPercentage: number;
+    timeSpent: number;
+    notes?: string;
+  }): Promise<ApiResponse<ProgressUpdateResponse>> => {
+    const response = await api.post('/course/progress', data);
+    return response.data;
+  },
+};
+
 // Error handling utility
 export const handleApiError = (error: AxiosError): string => {
   const data = error.response?.data as Partial<ApiResponse> | undefined;
@@ -744,5 +902,195 @@ export const handleApiError = (error: AxiosError): string => {
   }
   return 'An unexpected error occurred';
 };
+
+// Progress API Response Interfaces
+export interface CourseProgressResponse {
+  programmeId: string;
+  programmeTitle: string;
+  overallProgress: number;
+  modulesCompleted: number;
+  totalModules: number;
+  lessonsCompleted: number;
+  totalLessons: number;
+  timeSpent: number;
+  lastAccessedAt: string;
+  enrollmentDate: string;
+  modules: ModuleProgressResponse[];
+}
+
+export interface ModuleProgressResponse {
+  moduleId: string;
+  title: string;
+  description: string;
+  orderIndex: number;
+  progress: {
+    completedLessons: number;
+    totalLessons: number;
+    percentage: number;
+    timeSpent: number;
+  };
+  lessons: LessonProgressResponse[];
+}
+
+export interface LessonProgressResponse {
+  lessonId: string;
+  title: string;
+  description: string;
+  orderIndex: number;
+  type: 'VIDEO' | 'TEXT' | 'QUIZ' | 'ASSIGNMENT' | 'INTERACTIVE';
+  duration: number;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  progressPercentage: number;
+  timeSpent: number;
+  lastAccessedAt?: string;
+  completedAt?: string;
+}
+
+export interface SmartProgressResponse {
+  courseId: string;
+  courseName: string;
+  totalLessons: number;
+  lessonsCompleted: number;
+  daysElapsed: number;
+  totalCourseDays: number;
+  actualProgress: number;
+  expectedProgress: number;
+  deviation: number;
+  label: 'Ahead' | 'On Track' | 'Behind';
+  enrollmentDate: string;
+  lastActivity: string;
+}
+
+export interface DashboardResponse {
+  courses: CourseOverview[];
+  metrics: DashboardMetrics;
+  upcomingDeadlines: UpcomingDeadline[];
+  recentActivity: RecentActivity[];
+}
+
+export interface CourseOverview {
+  courseId: string;
+  title: string;
+  progress: number;
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'NOT_STARTED';
+  category: string;
+  enrollmentDate?: string;
+}
+
+export interface DashboardMetrics {
+  enrolledCoursesCount: number;
+  completedCoursesCount: number;
+  overallProgress: number;
+  totalStudyTimeHours: number;
+  currentStreak: number;
+  longestStreak: number;
+  totalQuizzes: number;
+  averageQuizScore: number;
+}
+
+export interface UpcomingDeadline {
+  courseTitle: string;
+  expectedDate: string;
+  daysLeft: number;
+}
+
+export interface RecentActivity {
+  completedAt: string;
+  timeSpent?: number;
+  courseTitle?: string;
+  lessonTitle?: string;
+}
+
+export interface LessonCompletionResponse {
+  success: boolean;
+  message: string;
+  progress: {
+    lessonId: string;
+    completed: boolean;
+    timeSpent: number;
+    completedAt: string;
+  };
+}
+
+export interface QuizSubmissionResponse {
+  success: boolean;
+  message: string;
+  result: {
+    quizId: string;
+    score: number;
+    maxScore: number;
+    passed: boolean;
+    timeSpent: number;
+    submittedAt: string;
+  };
+}
+
+export interface EnrollmentResponse {
+  success: boolean;
+  message: string;
+  enrollment: {
+    id: string;
+    programmeId: string;
+    studentId: string;
+    status: string;
+    enrollmentDate: string;
+  };
+}
+
+// Course API Response Interfaces
+export interface CourseResponse {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+  duration: number;
+  durationDays?: number;
+  instructor?: string;
+  thumbnail?: string;
+  tags?: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ModuleResponse {
+  id: string;
+  title: string;
+  description: string;
+  orderIndex: number;
+  programmeId: string;
+  lessons: LessonResponse[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LessonResponse {
+  id: string;
+  title: string;
+  description: string;
+  content?: string;
+  type: 'VIDEO' | 'TEXT' | 'QUIZ' | 'ASSIGNMENT' | 'INTERACTIVE';
+  duration: number;
+  orderIndex: number;
+  moduleId: string;
+  videoUrl?: string;
+  resources?: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProgressUpdateResponse {
+  success: boolean;
+  message: string;
+  progress: {
+    lessonId: string;
+    progressPercentage: number;
+    timeSpent: number;
+    updatedAt: string;
+  };
+}
 
 export default api;
