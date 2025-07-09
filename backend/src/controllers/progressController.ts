@@ -20,6 +20,102 @@ interface PopulatedProgrammeLesson extends Omit<IProgrammeLesson, 'moduleId'> {
 }
 
 /**
+ * Get general progress overview for the authenticated user
+ */
+export const getGeneralProgress = async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required'
+            });
+        }
+
+        // Get all enrollments for the user
+        const enrollments = await Enrollment.find({ studentId: userId })
+            .populate('programmeId', 'title category totalLessons estimatedDuration')
+            .lean();
+
+        // Get lesson completions
+        const lessonCompletions = await LessonCompletion.find({ userId }).lean();
+
+        // Get quiz results
+        const quizResults = await QuizResult.find({ studentId: userId }).lean();
+
+        // Calculate overall metrics
+        const totalEnrollments = enrollments.length;
+        const activeEnrollments = enrollments.filter(e => e.status === 'ACTIVE').length;
+        const completedEnrollments = enrollments.filter(e => e.status === 'COMPLETED').length;
+        
+        const totalLessonsCompleted = lessonCompletions.length;
+        const totalTimeSpent = enrollments.reduce((sum, e) => sum + (e.progress.timeSpent || 0), 0);
+        
+        const totalQuizzesTaken = quizResults.length;
+        const averageQuizScore = totalQuizzesTaken > 0 
+            ? quizResults.reduce((sum, q) => sum + (q.percentage || 0), 0) / totalQuizzesTaken 
+            : 0;
+
+        // Calculate overall progress across all courses
+        let overallProgress = 0;
+        if (totalEnrollments > 0) {
+            const totalProgress = enrollments.reduce((sum, e) => sum + (e.progress.totalProgress || 0), 0);
+            overallProgress = totalProgress / totalEnrollments;
+        }
+
+        // Get recent activity (last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        
+        const recentCompletions = lessonCompletions.filter(
+            lc => new Date(lc.completedAt) >= sevenDaysAgo
+        );
+
+        const recentQuizzes = quizResults.filter(
+            qr => new Date(qr.completedAt) >= sevenDaysAgo
+        );
+
+        res.status(200).json({
+            success: true,
+            data: {
+                userId,
+                overview: {
+                    totalEnrollments,
+                    activeEnrollments,
+                    completedEnrollments,
+                    overallProgress: Math.round(overallProgress * 100) / 100,
+                    totalLessonsCompleted,
+                    totalTimeSpent, // in minutes
+                    totalQuizzesTaken,
+                    averageQuizScore: Math.round(averageQuizScore * 100) / 100
+                },
+                recentActivity: {
+                    lessonsCompleted: recentCompletions.length,
+                    quizzesTaken: recentQuizzes.length,
+                    timeSpent: recentCompletions.reduce((sum, lc) => sum + (lc.timeSpent || 0), 0)
+                },
+                courses: enrollments.map(enrollment => ({
+                    courseId: (enrollment.programmeId as any)._id,
+                    title: (enrollment.programmeId as any).title,
+                    category: (enrollment.programmeId as any).category,
+                    status: enrollment.status,
+                    progress: enrollment.progress.totalProgress,
+                    enrollmentDate: enrollment.enrollmentDate,
+                    lastActivity: enrollment.progress.lastActivityDate
+                }))
+            }
+        });
+    } catch (error) {
+        console.error('Error getting general progress:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve general progress data'
+        });
+    }
+};
+
+/**
  * Get comprehensive progress for a student's enrolled courses
  */
 export const getStudentProgress = async (req: AuthRequest, res: Response) => {
