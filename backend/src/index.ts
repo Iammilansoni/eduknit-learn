@@ -17,6 +17,7 @@ import studentRoutes from './routes/student';
 import privacyRoutes from './routes/privacy';
 import progressRoutes from './routes/progress';
 import healthRoutes from './routes/health';
+import adminRoutes from './routes/admin';
 import courseContentRoutes from './routes/courseContent';
 import integrationRoutes from './routes/integrations';
 import analyticsRoutes from './routes/analytics';
@@ -100,10 +101,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
 }));
 
 // API routes
-app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/privacy', privacyRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/integrations', integrationRoutes);

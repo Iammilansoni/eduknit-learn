@@ -303,11 +303,18 @@ export const useEnrollment = () => {
       const result = await progressApi.enrollInProgram(programmeId);
       console.log('Enrollment successful:', result);
       
-      // Invalidate and refetch enrollments to update the UI immediately
+      // Invalidate and refetch all related queries to update the UI immediately
       await queryClient.invalidateQueries({ queryKey: ['student-enrollments'] });
       await queryClient.invalidateQueries({ queryKey: ['student-dashboard'] });
       await queryClient.invalidateQueries({ queryKey: ['student-analytics'] });
       await queryClient.invalidateQueries({ queryKey: ['student-profile'] });
+      await queryClient.invalidateQueries({ queryKey: ['enrolled-programs'] });
+      await queryClient.invalidateQueries({ queryKey: ['progress-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['student-profile-photo'] });
+      
+      // Force refetch critical data
+      await queryClient.refetchQueries({ queryKey: ['student-enrollments'] });
+      await queryClient.refetchQueries({ queryKey: ['student-dashboard'] });
       
       return result;
     } catch (err) {
@@ -335,3 +342,56 @@ export const useEnrollment = () => {
     error
   };
 };
+
+// Hook for updating enrollment status
+export const useUpdateEnrollmentStatus = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const updateStatus = useCallback(async (enrollmentId: string, status: 'ACTIVE' | 'COMPLETED' | 'PAUSED') => {
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      console.log('Updating enrollment status:', { enrollmentId, status });
+      
+      const result = await progressApi.updateEnrollmentStatus(enrollmentId, status);
+      console.log('Status update successful:', result);
+      
+      // Invalidate and refetch all related queries to update the UI immediately
+      await queryClient.invalidateQueries({ queryKey: ['student-enrollments'] });
+      await queryClient.invalidateQueries({ queryKey: ['student-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['student-analytics'] });
+      await queryClient.invalidateQueries({ queryKey: ['student-profile'] });
+      await queryClient.invalidateQueries({ queryKey: ['enrolled-programs'] });
+      await queryClient.invalidateQueries({ queryKey: ['progress-dashboard'] });
+      
+      // Force refetch critical data
+      await queryClient.refetchQueries({ queryKey: ['student-enrollments'] });
+      await queryClient.refetchQueries({ queryKey: ['student-dashboard'] });
+      
+      return result;
+    } catch (err) {
+      console.error('Failed to update enrollment status:', err);
+      
+      const errorMessage = handleApiError(err as any);
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, queryClient]);
+
+  return {
+    updateStatus,
+    loading,
+    error
+  };
+};
+

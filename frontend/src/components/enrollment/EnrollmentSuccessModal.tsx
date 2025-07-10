@@ -25,10 +25,8 @@ const EnrollmentSuccessModal: React.FC<EnrollmentSuccessModalProps> = ({
 
   const handleStartLearning = () => {
     onClose();
-    // Navigate to the program page with curriculum tab pre-selected
-    navigate(`/programs/${courseSlug}#curriculum`, { 
-      state: { activeTab: 'curriculum' } 
-    });
+    // Navigate to the student dashboard courses page
+    navigate('/student-dashboard/courses');
   };
 
   const handleGoToDashboard = () => {

@@ -271,6 +271,22 @@ export const progressApi = {
     const response = await api.get(`/progress/analytics/${studentId}/${programmeId}`);
     return response.data.data;
   },
+
+  // Update enrollment status
+  async updateEnrollmentStatus(enrollmentId: string, status: 'ACTIVE' | 'COMPLETED' | 'PAUSED'): Promise<any> {
+    try {
+      const response = await api.put<ApiResponse<any>>(`/student/enrollment/${enrollmentId}/status`, { status });
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to update enrollment status');
+      }
+      return response.data.data;
+    } catch (error) {
+      const axiosError = error as AxiosError<ApiResponse>;
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to update enrollment status');
+    }
+  },
+
+
 };
 
 export default progressApi;

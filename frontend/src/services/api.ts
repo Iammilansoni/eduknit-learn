@@ -951,6 +951,12 @@ export const studentAPI = {
     timeSpent?: number;
   }) =>
     api.put<ApiResponse<any>>('/student/lesson/progress', data).then(res => res.data),
+  
+  // Update enrollment status
+  updateEnrollmentStatus: (enrollmentId: string, status: 'ACTIVE' | 'COMPLETED' | 'PAUSED') =>
+    api.put<ApiResponse<any>>(`/student/enrollment/${enrollmentId}/status`, { status }).then(res => res.data),
+
+
 };
 
 // Type definitions for new endpoints

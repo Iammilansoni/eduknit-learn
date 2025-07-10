@@ -33,7 +33,10 @@ import BioSkillsPage from "./pages/programs/BioSkillsPage";
 import DecisionMakingPage from "./pages/programs/DecisionMakingPage";
 
 // Dashboard Pages
+import AdminPage from "./pages/AdminPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AdminCourseManagement from './pages/admin/AdminCourseManagement';
+import AdminUserManagement from './pages/admin/AdminUserManagement';
 import StudentDashboardPage from "./pages/StudentDashboardPage";
 import StudentProfilePage from "./pages/StudentProfilePageNew";
 import StudentAnalyticsPage from "./pages/StudentAnalyticsPage";
@@ -93,10 +96,34 @@ const App = () => (
             
             {/* Protected Dashboard Routes */}
             <Route 
+              path="/admin" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/admin/dashboard" 
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminDashboardPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/users" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminUserManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/courses" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminCourseManagement />
                 </ProtectedRoute>
               } 
             />
@@ -215,7 +242,6 @@ const App = () => (
             <Route path="/student-dashboard/live-sessions" element={<ProtectedRoute allowedRoles={['student', 'user']}><LiveSessionsPage /></ProtectedRoute>} />
             <Route path="/student-dashboard/help" element={<ProtectedRoute allowedRoles={['student', 'user']}><HelpSupportPage /></ProtectedRoute>} />
             
-            <Route path="/admin" element={<ProtectedRoute><AdminDashboardPage /></ProtectedRoute>} />
             <Route path="/admin/analytics" element={<ProtectedRoute><AnalyticsPage /></ProtectedRoute>} />
             
             {/* Catch all route */}

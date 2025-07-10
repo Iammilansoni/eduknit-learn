@@ -116,25 +116,36 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
         </div>
         
         {/* User profile */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center space-x-3">
-          <Avatar className="h-12 w-12 flex-shrink-0">
-            <AvatarImage 
-              src={photoData?.data?.profilePhotoUrl || user?.profilePicture} 
-              alt={user?.firstName || user?.username || 'User'} 
-              className="object-cover object-center h-full w-full rounded-full" 
-            />
-            <AvatarFallback className="bg-eduBlue-500 text-white">
-              {user?.firstName ? user.firstName.charAt(0).toUpperCase() : 
-               user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col min-w-0">
-            <span className="font-medium text-gray-900 dark:text-white truncate">
-              {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username || 'Guest User'}
-            </span>
-            <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
-              {user?.email || 'Sign in to access all features'}
-            </span>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <Avatar className="h-14 w-14 flex-shrink-0 ring-2 ring-eduBlue-100 dark:ring-eduBlue-900/30 shadow-sm">
+                <AvatarImage 
+                  src={photoData?.data?.profilePhotoUrl || user?.profilePicture} 
+                  alt={user?.firstName || user?.username || 'User'} 
+                  className="object-cover object-center h-full w-full rounded-full" 
+                />
+                <AvatarFallback className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-semibold text-lg shadow-inner">
+                  {user?.firstName && user?.lastName ? 
+                    `${user.firstName.charAt(0).toUpperCase()}${user.lastName.charAt(0).toUpperCase()}` :
+                    user?.firstName ? user.firstName.charAt(0).toUpperCase() : 
+                    user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
+                </AvatarFallback>
+              </Avatar>
+              {/* Online status indicator */}
+              <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full shadow-sm"></div>
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="font-semibold text-gray-900 dark:text-white truncate text-base">
+                {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.username || 'Guest User'}
+              </span>
+              <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                {user?.email || 'Sign in to access all features'}
+              </span>
+              <span className="text-xs text-eduBlue-600 dark:text-eduBlue-400 font-medium mt-0.5">
+                Student
+              </span>
+            </div>
           </div>
         </div>
         

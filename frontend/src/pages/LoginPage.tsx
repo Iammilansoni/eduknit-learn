@@ -83,8 +83,12 @@ const LoginPage = () => {
       // Use a shorter timeout and force redirect
       setTimeout(() => {
         console.log('Timeout redirect triggered');
-        // Force redirect to student dashboard (the useEffect should also handle this)
-        navigate('/student-dashboard', { replace: true });
+        // Force redirect based on user role (the useEffect should also handle this)
+        if (user?.role === 'admin') {
+          navigate('/admin/dashboard', { replace: true });
+        } else {
+          navigate('/student-dashboard', { replace: true });
+        }
       }, 1000);
     } catch (error: unknown) {
       console.error('Login error:', error);

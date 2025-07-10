@@ -20,10 +20,21 @@ import {
   Calendar,
   Award,
   Target,
-  ArrowRight
+  ArrowRight,
+  MoreVertical,
+  Pause,
+  PlayCircle
 } from 'lucide-react';
 import { studentAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import { useUpdateEnrollmentStatus } from '@/hooks/useCourseProgress';
+import { toast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface CourseEnrollment {
   id: string;
@@ -55,6 +66,9 @@ const MyCoursesPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  
+  // Status update hook
+  const { updateStatus, loading: statusUpdateLoading } = useUpdateEnrollmentStatus();
 
   // Fetch enrolled courses
   const { data: enrollmentsData, isLoading, error } = useQuery({
@@ -142,6 +156,24 @@ const MyCoursesPage: React.FC = () => {
   const handleViewCourse = (enrollment: CourseEnrollment) => {
     navigate(`/student-dashboard/courses/${enrollment.programmeId}?enrollmentId=${enrollment.id}`);
   };
+
+  const handleStatusUpdate = async (enrollmentId: string, newStatus: 'ACTIVE' | 'COMPLETED' | 'PAUSED') => {
+    try {
+      await updateStatus(enrollmentId, newStatus);
+      toast({
+        title: "Status Updated",
+        description: `Course moved to ${newStatus.toLowerCase()} category`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update course status",
+        variant: "destructive",
+      });
+    }
+  };
+
+
 
   const formatLastActivity = (date?: string) => {
     if (!date) return 'Not started';
@@ -402,16 +434,32 @@ const MyCoursesPage: React.FC = () => {
                           <Button 
                             onClick={() => handleContinueLearning(enrollment)}
                             className="flex-1"
+                            disabled={statusUpdateLoading}
                           >
                             <Play className="h-4 w-4 mr-2" />
                             Continue Learning
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => handleViewCourse(enrollment)}
-                          >
-                            <ArrowRight className="h-4 w-4" />
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewCourse(enrollment)}>
+                                <ArrowRight className="h-4 w-4 mr-2" />
+                                View Course
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(enrollment.id, 'PAUSED')}>
+                                <Pause className="h-4 w-4 mr-2" />
+                                Pause Course
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(enrollment.id, 'COMPLETED')}>
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Mark as Completed
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
 
                         {/* Last Activity */}
@@ -482,13 +530,33 @@ const MyCoursesPage: React.FC = () => {
                             <div className="text-gray-500">Lessons Completed</div>
                           </div>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => handleViewCourse(enrollment)}
-                          className="w-full"
-                        >
-                          View Certificate
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleViewCourse(enrollment)}
+                            className="flex-1"
+                            disabled={statusUpdateLoading}
+                          >
+                            View Certificate
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(enrollment.id, 'ACTIVE')}>
+                                <PlayCircle className="h-4 w-4 mr-2" />
+                                Resume Course
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(enrollment.id, 'PAUSED')}>
+                                <Pause className="h-4 w-4 mr-2" />
+                                Move to Paused
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -537,12 +605,32 @@ const MyCoursesPage: React.FC = () => {
                           </div>
                           <Progress value={enrollment.progress.totalProgress} />
                         </div>
-                        <Button 
-                          onClick={() => handleContinueLearning(enrollment)}
-                          className="w-full"
-                        >
-                          Resume Learning
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={() => handleContinueLearning(enrollment)}
+                            className="flex-1"
+                            disabled={statusUpdateLoading}
+                          >
+                            Resume Learning
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(enrollment.id, 'ACTIVE')}>
+                                <PlayCircle className="h-4 w-4 mr-2" />
+                                Activate Course
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusUpdate(enrollment.id, 'COMPLETED')}>
+                                <CheckCircle className="h-4 w-4 mr-2" />
+                                Mark as Completed
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </CardContent>
                     </Card>
                   );
