@@ -568,19 +568,49 @@ export const getStudentEnrollments = async (req: AuthenticatedRequest, res: Resp
 
     // Build query
     const query: any = { studentId };
-    if (status) {
+    if (status && status !== 'all') {
       query.status = status;
     }
 
-    // Get enrollments with pagination
+    // Get enrollments with pagination and populate programme data
     const [enrollments, total] = await Promise.all([
       Enrollment.find(query)
-        .populate('programmeId', 'title description duration level category')
+        .populate('programmeId', 'title description duration level category totalModules totalLessons estimatedDuration imageUrl instructor')
         .sort({ enrollmentDate: -1 })
         .skip(skip)
-        .limit(Number(limit)),
+        .limit(Number(limit))
+        .lean(),
       Enrollment.countDocuments(query)
     ]);
+
+    // Transform the data to match frontend expectations
+    const transformedEnrollments = enrollments.map(enrollment => {
+      const programme = enrollment.programmeId as any;
+      return {
+        id: enrollment._id.toString(),
+        programmeId: programme._id?.toString() || '',
+        status: enrollment.status,
+        enrollmentDate: enrollment.enrollmentDate,
+        progress: {
+          totalProgress: enrollment.progress?.totalProgress || 0,
+          completedLessons: enrollment.progress?.completedLessons || [],
+          timeSpent: enrollment.progress?.timeSpent || 0,
+          lastActivityDate: enrollment.progress?.lastActivityDate
+        },
+        programme: {
+          id: programme._id?.toString() || '',
+          title: programme.title || '',
+          description: programme.description || '',
+          category: programme.category || '',
+          level: programme.level || '',
+          totalModules: programme.totalModules || 0,
+          totalLessons: programme.totalLessons || 0,
+          estimatedDuration: programme.estimatedDuration || 0,
+          thumbnail: programme.imageUrl || '',
+          instructor: programme.instructor || ''
+        }
+      };
+    });
 
     const pagination = {
       page: Number(page),
@@ -589,7 +619,7 @@ export const getStudentEnrollments = async (req: AuthenticatedRequest, res: Resp
       pages: Math.ceil(total / Number(limit))
     };
 
-    success(res, { enrollments, pagination }, 'Student enrollments retrieved successfully');
+    success(res, { enrollments: transformedEnrollments, pagination }, 'Student enrollments retrieved successfully');
 
   } catch (error) {
     logger.error('Get student enrollments error:', error);
@@ -926,30 +956,55 @@ export const getEnrolledPrograms = async (req: AuthenticatedRequest, res: Respon
  */
 export const enrollInProgram = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const studentId = req.user?.id;
-    const { programmeId } = req.body;
-    if (!studentId || !programmeId) {
-      validationError(res, 'Student ID and programmeId are required');
+    // Check for validation errors first
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      validationError(res, 'Validation failed', errors.array());
       return;
     }
+
+    const studentId = req.user?.id;
+    const { programmeId } = req.body;
+    
+    // Log for debugging
+    logger.info('Enrollment request:', { studentId, programmeId, userRole: req.user?.role });
+
+    if (!studentId) {
+      validationError(res, 'Authentication required - no student ID found');
+      return;
+    }
+
+    if (!programmeId) {
+      validationError(res, 'Programme ID is required');
+      return;
+    }
+
+    // Validate that programmeId is a valid ObjectId format
+    if (!programmeId.match(/^[0-9a-fA-F]{24}$/)) {
+      validationError(res, 'Invalid programme ID format');
+      return;
+    }
+
     // Check if already enrolled
     const existing = await Enrollment.findOne({ studentId, programmeId });
     if (existing) {
       conflict(res, 'Already enrolled in this program');
       return;
     }
+
     // Check if programme exists
     const programme = await Programme.findById(programmeId);
     if (!programme) {
       notFound(res, 'Programme not found');
       return;
     }
-    // Create new enrollment
+
+    // Create new enrollment with ACTIVE status
     const enrollment = new Enrollment({
       studentId,
       programmeId,
       enrollmentDate: new Date(),
-      status: 'ENROLLED',
+      status: 'ACTIVE', // Set to ACTIVE instead of ENROLLED
       progress: {
         completedModules: [],
         completedLessons: [],
@@ -957,16 +1012,190 @@ export const enrollInProgram = async (req: AuthenticatedRequest, res: Response):
         lastActivityDate: new Date(),
         timeSpent: 0
       },
-      paymentStatus: 'PENDING',
+      paymentStatus: 'COMPLETED', // Set to COMPLETED for free courses
       certificateIssued: false,
       metadata: { enrollmentSource: 'DIRECT' },
       createdAt: new Date(),
       updatedAt: new Date()
     });
+
     await enrollment.save();
-    created(res, enrollment, 'Enrolled successfully');
+
+    // Update student profile statistics
+    const profile = await StudentProfile.findOne({ userId: studentId });
+    if (profile) {
+      profile.statistics.totalCoursesEnrolled = (profile.statistics.totalCoursesEnrolled || 0) + 1;
+      await profile.save();
+    }
+
+    // Return the created enrollment with populated programme data
+    const populatedEnrollment = await Enrollment.findById(enrollment._id)
+      .populate('programmeId', 'title description duration level category totalModules totalLessons estimatedDuration imageUrl instructor')
+      .lean();
+
+    const transformedEnrollment = populatedEnrollment && populatedEnrollment.programmeId ? {
+      id: populatedEnrollment._id.toString(),
+      programmeId: (populatedEnrollment.programmeId as any)._id?.toString() || '',
+      status: populatedEnrollment.status,
+      enrollmentDate: populatedEnrollment.enrollmentDate,
+      progress: {
+        totalProgress: populatedEnrollment.progress?.totalProgress || 0,
+        completedLessons: populatedEnrollment.progress?.completedLessons || [],
+        timeSpent: populatedEnrollment.progress?.timeSpent || 0,
+        lastActivityDate: populatedEnrollment.progress?.lastActivityDate
+      },
+      programme: {
+        id: (populatedEnrollment.programmeId as any)._id?.toString() || '',
+        title: (populatedEnrollment.programmeId as any).title || '',
+        description: (populatedEnrollment.programmeId as any).description || '',
+        category: (populatedEnrollment.programmeId as any).category || '',
+        level: (populatedEnrollment.programmeId as any).level || '',
+        totalModules: (populatedEnrollment.programmeId as any).totalModules || 0,
+        totalLessons: (populatedEnrollment.programmeId as any).totalLessons || 0,
+        estimatedDuration: (populatedEnrollment.programmeId as any).estimatedDuration || 0,
+        thumbnail: (populatedEnrollment.programmeId as any).imageUrl || '',
+        instructor: (populatedEnrollment.programmeId as any).instructor || ''
+      }
+    } : null;
+    if (transformedEnrollment) {
+      created(res, transformedEnrollment, 'Enrolled successfully');
+    } else {
+      serverError(res, 'Failed to populate enrollment');
+    }
   } catch (error) {
     logger.error('Enroll in program error:', error);
     serverError(res, 'Failed to enroll in program');
+  }
+};
+
+/**
+ * Mark lesson as completed and update progress
+ * @route POST /api/student/lesson/complete
+ * @body { enrollmentId: string, moduleId: string, lessonId: string, timeSpent: number }
+ */
+export const markLessonCompleted = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = req.user?.id;
+    const { enrollmentId, moduleId, lessonId, timeSpent = 0 } = req.body;
+
+    if (!studentId) {
+      return forbidden(res, 'Student ID is required');
+    }
+
+    // Find enrollment and verify ownership
+    const enrollment = await Enrollment.findOne({
+      _id: enrollmentId,
+      studentId
+    }).populate('programmeId');
+
+    if (!enrollment) {
+      return notFound(res, 'Enrollment not found');
+    }
+
+    // Update progress
+    const progress = enrollment.progress;
+    
+    // Add module if not already completed
+    if (moduleId && !progress.completedModules.includes(moduleId)) {
+      progress.completedModules.push(moduleId);
+    }
+
+    // Add lesson if not already completed
+    if (lessonId && !progress.completedLessons.includes(lessonId)) {
+      progress.completedLessons.push(lessonId);
+    }
+
+    // Update time spent
+    progress.timeSpent += timeSpent;
+    progress.lastActivityDate = new Date();
+    
+    // Calculate progress percentage
+    const programme = enrollment.programmeId as any;
+    if (programme) {
+      const totalLessons = programme.totalLessons || 1;
+      progress.totalProgress = Math.round((progress.completedLessons.length / totalLessons) * 100);
+    }
+
+    await enrollment.save();
+
+    // Update student profile statistics
+    const profile = await StudentProfile.findOne({ userId: studentId });
+    if (profile) {
+      profile.statistics.totalLearningHours = (profile.statistics.totalLearningHours || 0) + (timeSpent / 60);
+      profile.updateLearningStreak();
+      await profile.save();
+    }
+
+    success(res, {
+      enrollment: {
+        id: enrollment._id,
+        progress: enrollment.progress,
+        status: enrollment.status
+      },
+      profile: profile ? {
+        totalLearningHours: profile.statistics.totalLearningHours,
+        streaks: profile.gamification.streaks
+      } : null
+    }, 'Lesson completed successfully');
+
+  } catch (error) {
+    logger.error('Mark lesson completed error:', error);
+    serverError(res, 'Failed to mark lesson as completed');
+  }
+};
+
+/**
+ * Update lesson progress (for partial completion)
+ * @route PUT /api/student/lesson/progress
+ * @body { enrollmentId: string, lessonId: string, progressPercentage: number, timeSpent: number }
+ */
+export const updateLessonProgress = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = req.user?.id;
+    const { enrollmentId, lessonId, progressPercentage, timeSpent = 0 } = req.body;
+
+    if (!studentId) {
+      return forbidden(res, 'Student ID is required');
+    }
+
+    // Find enrollment and verify ownership
+    const enrollment = await Enrollment.findOne({
+      _id: enrollmentId,
+      studentId
+    });
+
+    if (!enrollment) {
+      return notFound(res, 'Enrollment not found');
+    }
+
+    // Update progress
+    const progress = enrollment.progress;
+    progress.timeSpent += timeSpent;
+    progress.lastActivityDate = new Date();
+
+    // If lesson is 100% complete, add it to completed lessons
+    if (progressPercentage >= 100 && !progress.completedLessons.includes(lessonId)) {
+      progress.completedLessons.push(lessonId);
+    }
+
+    // Recalculate total progress
+    const programme = await Programme.findById(enrollment.programmeId);
+    if (programme) {
+      const totalLessons = programme.totalLessons || 1;
+      progress.totalProgress = Math.round((progress.completedLessons.length / totalLessons) * 100);
+    }
+
+    await enrollment.save();
+
+    success(res, {
+      enrollment: {
+        id: enrollment._id,
+        progress: enrollment.progress
+      }
+    }, 'Lesson progress updated successfully');
+
+  } catch (error) {
+    logger.error('Update lesson progress error:', error);
+    serverError(res, 'Failed to update lesson progress');
   }
 };

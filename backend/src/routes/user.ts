@@ -7,7 +7,9 @@ import {
   createUser,
   updateEnrollmentStatus,
   getUserStats,
-  changePassword
+  changePassword,
+  getUserCourses,
+  getUserLearningStats
 } from '../controllers/userController';
 import {
   validateUserUpdate,
@@ -37,6 +39,20 @@ router.get('/', requireAdmin, getAllUsers);
  * @access  Admin
  */
 router.get('/stats', requireAdmin, getUserStats);
+
+/**
+ * @route   GET /api/user/learning-stats
+ * @desc    Get authenticated user's learning statistics and history
+ * @access  Authenticated User
+ */
+router.get('/learning-stats', getUserLearningStats);
+
+/**
+ * @route   GET /api/user/courses
+ * @desc    Get authenticated user's enrolled courses
+ * @access  Authenticated User
+ */
+router.get('/courses', getUserCourses);
 
 /**
  * @route   POST /api/user

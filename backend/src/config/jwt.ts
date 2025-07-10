@@ -255,6 +255,9 @@ export const createJWTMiddleware = (tokenType: 'access' | 'refresh') => {
       }
 
       if (!token) {
+        console.log('JWT Middleware: No token found for', req.originalUrl);
+        console.log('Headers:', req.headers);
+        console.log('Cookies:', req.cookies);
         res.status(401).json({
           success: false,
           message: 'Access token required',
@@ -273,8 +276,10 @@ export const createJWTMiddleware = (tokenType: 'access' | 'refresh') => {
 
       // Add payload to request
       (req as any).user = payload.user;
+      console.log('JWT Middleware: User authenticated:', { userId: payload.user.id, role: payload.user.role, url: req.originalUrl });
       next();
     } catch (error: any) {
+      console.log('JWT Middleware Error for', req.originalUrl, ':', error.message);
       if (error instanceof JWTError) {
         res.status(401).json({
           success: false,

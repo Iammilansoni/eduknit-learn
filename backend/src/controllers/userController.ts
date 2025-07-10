@@ -2,6 +2,346 @@ import { Request, Response } from 'express';
 import User, { IUser } from '../models/User';
 import { AuthenticatedRequest } from '../utils/jwt';
 import logger from '../config/logger';
+import Enrollment from '../models/Enrollment';
+import { Types } from 'mongoose';
+
+// Get user's enrolled courses
+export const getUserCourses = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Get all enrollments for the user
+    const enrollments = await Enrollment.find({ studentId: userId })
+      .populate('programmeId', 'title description category totalLessons estimatedDuration level price currency imageUrl')
+      .sort({ enrollmentDate: -1 })
+      .lean();
+
+    // Transform the data for the response
+    const courses = enrollments.map(enrollment => ({
+      enrollmentId: enrollment._id,
+      courseId: (enrollment.programmeId as any)._id,
+      title: (enrollment.programmeId as any).title,
+      description: (enrollment.programmeId as any).description,
+      category: (enrollment.programmeId as any).category,
+      level: (enrollment.programmeId as any).level,
+      totalLessons: (enrollment.programmeId as any).totalLessons,
+      estimatedDuration: (enrollment.programmeId as any).estimatedDuration,
+      price: (enrollment.programmeId as any).price,
+      currency: (enrollment.programmeId as any).currency,
+      imageUrl: (enrollment.programmeId as any).imageUrl,
+      enrollmentDate: enrollment.enrollmentDate,
+      status: enrollment.status,
+      progress: {
+        totalProgress: enrollment.progress.totalProgress,
+        completedLessons: enrollment.progress.completedLessons.length,
+        timeSpent: enrollment.progress.timeSpent,
+        lastActivityDate: enrollment.progress.lastActivityDate
+      },
+      completionDate: enrollment.completionDate,
+      certificateIssued: enrollment.certificateIssued
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        userId,
+        totalCourses: courses.length,
+        courses
+      }
+    });
+  } catch (error) {
+    logger.error('Get user courses error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve user courses'
+    });
+  }
+};
+
+// Get user's learning statistics and history
+export const getUserLearningStats = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    // Import required models
+    const LessonCompletion = require('../models/LessonCompletion').default;
+    const QuizResult = require('../models/QuizResult').default;
+
+    // Get comprehensive learning data using aggregation pipelines
+    const [
+      enrollmentStats,
+      lessonStats,
+      quizStats,
+      timeStats,
+      recentActivity,
+      categoryPerformance,
+      weeklyProgress
+    ] = await Promise.all([
+      // Enrollment statistics
+      Enrollment.aggregate([
+        { $match: { studentId: new Types.ObjectId(userId) } },
+        {
+          $group: {
+            _id: null,
+            totalEnrollments: { $sum: 1 },
+            activeEnrollments: {
+              $sum: { $cond: [{ $eq: ['$status', 'ACTIVE'] }, 1, 0] }
+            },
+            completedEnrollments: {
+              $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
+            },
+            totalTimeSpent: { $sum: '$progress.timeSpent' },
+            averageProgress: { $avg: '$progress.totalProgress' }
+          }
+        }
+      ]),
+
+      // Lesson completion statistics
+      LessonCompletion.aggregate([
+        { $match: { userId: new Types.ObjectId(userId) } },
+        {
+          $group: {
+            _id: null,
+            totalLessonsCompleted: { $sum: 1 },
+            totalTimeSpent: { $sum: '$timeSpent' },
+            averageTimePerLesson: { $avg: '$timeSpent' }
+          }
+        }
+      ]),
+
+      // Quiz performance statistics
+      QuizResult.aggregate([
+        { $match: { studentId: new Types.ObjectId(userId) } },
+        {
+          $group: {
+            _id: null,
+            totalQuizzesTaken: { $sum: 1 },
+            averageScore: { $avg: '$percentage' },
+            highestScore: { $max: '$percentage' },
+            passedQuizzes: {
+              $sum: { $cond: ['$isPassed', 1, 0] }
+            },
+            totalTimeSpent: { $sum: '$timeSpent' }
+          }
+        }
+      ]),
+
+      // Time-based statistics (last 30 days)
+      Enrollment.aggregate([
+        { 
+          $match: { 
+            studentId: new Types.ObjectId(userId),
+            'progress.lastActivityDate': { 
+              $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) 
+            }
+          } 
+        },
+        {
+          $group: {
+            _id: null,
+            recentTimeSpent: { $sum: '$progress.timeSpent' }
+          }
+        }
+      ]),
+
+      // Recent activity (last 7 days)
+      LessonCompletion.aggregate([
+        { 
+          $match: { 
+            userId: new Types.ObjectId(userId),
+            completedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+          } 
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$completedAt' }
+            },
+            lessonsCompleted: { $sum: 1 },
+            timeSpent: { $sum: '$timeSpent' }
+          }
+        },
+        { $sort: { _id: -1 } },
+        { $limit: 7 }
+      ]),
+
+      // Performance by category
+      Enrollment.aggregate([
+        { $match: { studentId: new Types.ObjectId(userId) } },
+        {
+          $lookup: {
+            from: 'programmes',
+            localField: 'programmeId',
+            foreignField: '_id',
+            as: 'programme'
+          }
+        },
+        { $unwind: '$programme' },
+        {
+          $group: {
+            _id: '$programme.category',
+            averageProgress: { $avg: '$progress.totalProgress' },
+            totalCourses: { $sum: 1 },
+            totalTimeSpent: { $sum: '$progress.timeSpent' }
+          }
+        }
+      ]),
+
+      // Weekly progress trend (last 8 weeks)
+      LessonCompletion.aggregate([
+        { 
+          $match: { 
+            userId: new Types.ObjectId(userId),
+            completedAt: { $gte: new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000) }
+          } 
+        },
+        {
+          $group: {
+            _id: {
+              $week: '$completedAt'
+            },
+            lessonsCompleted: { $sum: 1 },
+            timeSpent: { $sum: '$timeSpent' }
+          }
+        },
+        { $sort: { _id: -1 } },
+        { $limit: 8 }
+      ])
+    ]);
+
+    // Calculate additional metrics
+    const enrollmentData = enrollmentStats[0] || {
+      totalEnrollments: 0,
+      activeEnrollments: 0,
+      completedEnrollments: 0,
+      totalTimeSpent: 0,
+      averageProgress: 0
+    };
+
+    const lessonData = lessonStats[0] || {
+      totalLessonsCompleted: 0,
+      totalTimeSpent: 0,
+      averageTimePerLesson: 0
+    };
+
+    const quizData = quizStats[0] || {
+      totalQuizzesTaken: 0,
+      averageScore: 0,
+      highestScore: 0,
+      passedQuizzes: 0,
+      totalTimeSpent: 0
+    };
+
+    const timeData = timeStats[0] || { recentTimeSpent: 0 };
+
+    // Calculate success rate
+    const quizSuccessRate = quizData.totalQuizzesTaken > 0 
+      ? (quizData.passedQuizzes / quizData.totalQuizzesTaken) * 100 
+      : 0;
+
+    // Calculate study streak (consecutive days with activity)
+    const studyStreak = await calculateStudyStreak(userId);
+
+    res.json({
+      success: true,
+      data: {
+        userId,
+        overview: {
+          totalEnrollments: enrollmentData.totalEnrollments,
+          activeEnrollments: enrollmentData.activeEnrollments,
+          completedEnrollments: enrollmentData.completedEnrollments,
+          overallProgress: Math.round(enrollmentData.averageProgress * 100) / 100,
+          totalLessonsCompleted: lessonData.totalLessonsCompleted,
+          totalTimeSpent: enrollmentData.totalTimeSpent, // in minutes
+          studyStreak
+        },
+        performance: {
+          totalQuizzesTaken: quizData.totalQuizzesTaken,
+          averageQuizScore: Math.round(quizData.averageScore * 100) / 100,
+          highestQuizScore: Math.round(quizData.highestScore * 100) / 100,
+          quizSuccessRate: Math.round(quizSuccessRate * 100) / 100,
+          averageTimePerLesson: Math.round(lessonData.averageTimePerLesson * 100) / 100
+        },
+        recentActivity: {
+          last7Days: recentActivity,
+          last30DaysTimeSpent: timeData.recentTimeSpent
+        },
+        categoryPerformance,
+        weeklyProgress: weeklyProgress.reverse(), // Show oldest to newest
+        timeBreakdown: {
+          totalStudyTime: enrollmentData.totalTimeSpent,
+          recentStudyTime: timeData.recentTimeSpent,
+          averageDailyStudyTime: timeData.recentTimeSpent / 30 // last 30 days
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Get user learning stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve learning statistics'
+    });
+  }
+};
+
+// Helper function to calculate study streak
+async function calculateStudyStreak(userId: string): Promise<number> {
+  try {
+    const LessonCompletion = require('../models/LessonCompletion').default;
+    
+    // Get all lesson completions for the user
+    const completions = await LessonCompletion.find({ userId })
+      .select('completedAt')
+      .sort({ completedAt: -1 })
+      .lean();
+
+    if (completions.length === 0) return 0;
+
+    // Group by date
+    const activityByDate = new Set();
+    completions.forEach((completion: any) => {
+      const date = new Date(completion.completedAt).toDateString();
+      activityByDate.add(date);
+    });
+
+    // Calculate consecutive days
+    const dates = Array.from(activityByDate).sort().reverse() as string[];
+    let streak = 0;
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+
+    for (let i = 0; i < dates.length; i++) {
+      const currentDate = new Date(dates[i] as string);
+      const expectedDate = new Date();
+      expectedDate.setDate(expectedDate.getDate() - i);
+      
+      if (currentDate.toDateString() === expectedDate.toDateString()) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  } catch (error) {
+    logger.error('Error calculating study streak:', error);
+    return 0;
+  }
+}
 
 // Get all users (Admin only)
 export const getAllUsers = async (req: AuthenticatedRequest, res: Response) => {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { progressApi } from '@/services/api';
+import { progressApi, handleApiError } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Types for API responses
 export interface Course {
@@ -283,23 +284,50 @@ export const useQuizSubmission = () => {
 export const useEnrollment = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const enrollInCourse = async (programmeId: string) => {
+  const enrollInCourse = useCallback(async (programmeId: string) => {
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
+      console.log('Enrolling in course with programmeId:', programmeId);
+      console.log('API base URL:', '/api (using Vite proxy)');
+      console.log('Full URL will be:', '/api/student/enroll (proxied to backend)');
       
-      // Call the backend API to enroll in course
-      const response = await progressApi.enrollInProgram(programmeId);
-      return response.data;
+      const result = await progressApi.enrollInProgram(programmeId);
+      console.log('Enrollment successful:', result);
+      
+      // Invalidate and refetch enrollments to update the UI immediately
+      await queryClient.invalidateQueries({ queryKey: ['student-enrollments'] });
+      await queryClient.invalidateQueries({ queryKey: ['student-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['student-analytics'] });
+      await queryClient.invalidateQueries({ queryKey: ['student-profile'] });
+      
+      return result;
     } catch (err) {
       console.error('Failed to enroll in course:', err);
-      setError(err instanceof Error ? err.message : 'Failed to enroll in course');
-      throw err;
+      console.error('Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        status: (err as any)?.response?.status,
+        statusText: (err as any)?.response?.statusText,
+        url: (err as any)?.config?.url,
+        method: (err as any)?.config?.method,
+        data: (err as any)?.config?.data
+      });
+      
+      const errorMessage = handleApiError(err as any);
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, queryClient]);
 
   return {
     enrollInCourse,

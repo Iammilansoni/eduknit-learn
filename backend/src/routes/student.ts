@@ -13,7 +13,9 @@ import {
   updateLearningActivity,
   getStudentAnalytics,
   upload,
-  enrollInProgram
+  enrollInProgram,
+  markLessonCompleted,
+  updateLessonProgress
 } from '../controllers/studentController';
 import { 
   createJWTMiddleware, 
@@ -126,6 +128,27 @@ router.post('/activity', requireStudent, [
 ], updateLearningActivity);
 
 /**
+ * @route   POST /api/student/enroll
+ * @desc    Enroll in a program
+ * @access  Authenticated Student
+ */
+router.post('/enroll', enrollInProgram);
+
+/**
+ * @route   POST /api/student/lesson/complete
+ * @desc    Mark lesson as completed
+ * @access  Authenticated Student
+ */
+router.post('/lesson/complete', markLessonCompleted);
+
+/**
+ * @route   PUT /api/student/lesson/progress
+ * @desc    Update lesson progress
+ * @access  Authenticated Student
+ */
+router.put('/lesson/progress', updateLessonProgress);
+
+/**
  * @route   GET /api/student/analytics
  * @desc    Get student analytics and statistics
  * @access  Student only
@@ -133,11 +156,16 @@ router.post('/activity', requireStudent, [
 router.get('/analytics', requireStudent, getStudentAnalytics);
 
 /**
- * @route   POST /api/student/enroll
- * @desc    Enroll in a program (Enroll Now logic)
- * @access  Student only
- * @body    programmeId: string
+ * @route   GET /api/student/test
+ * @desc    Test endpoint to verify routing is working
+ * @access  Public (for testing)
  */
-router.post('/enroll', requireStudent, body('programmeId').notEmpty().isString(), enrollInProgram);
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Student routes are working',
+    timestamp: new Date().toISOString()
+  });
+});
 
 export default router;

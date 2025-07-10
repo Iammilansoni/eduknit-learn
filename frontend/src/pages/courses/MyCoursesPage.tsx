@@ -61,14 +61,34 @@ const MyCoursesPage: React.FC = () => {
     queryKey: ['student-enrollments'],
     queryFn: studentAPI.getStudentEnrollments,
     enabled: !!user?.id,
+    retry: (failureCount, error: any) => {
+      // Don't retry on authentication errors
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    onError: (error: any) => {
+      console.error('Failed to fetch enrollments:', error);
+      // Don't redirect on auth errors, let the component handle it
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        console.log('Authentication error in MyCoursesPage, but not redirecting');
+      }
+    }
   });
 
   const enrollments = (enrollmentsData?.data?.enrollments || []) as CourseEnrollment[];
 
   // Filter courses based on search and filters
   const filteredEnrollments = enrollments.filter(enrollment => {
-    const matchesSearch = enrollment.programme.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         enrollment.programme.description.toLowerCase().includes(searchTerm.toLowerCase());
+    // Add defensive checks for programme data
+    if (!enrollment.programme) {
+      console.warn('Enrollment missing programme data:', enrollment);
+      return false;
+    }
+
+    const matchesSearch = enrollment.programme.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         enrollment.programme.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || enrollment.status === statusFilter;
     const matchesCategory = categoryFilter === 'all' || enrollment.programme.category === categoryFilter;
 
@@ -115,12 +135,25 @@ const MyCoursesPage: React.FC = () => {
   };
 
   const handleContinueLearning = (enrollment: CourseEnrollment) => {
-    // Navigate to the course detail page
-    navigate(`/student-dashboard/courses/${enrollment.programmeId}`);
+    // Navigate to the course detail page with the enrollment ID
+    navigate(`/student-dashboard/courses/${enrollment.programmeId}?enrollmentId=${enrollment.id}`);
   };
 
   const handleViewCourse = (enrollment: CourseEnrollment) => {
-    navigate(`/student-dashboard/courses/${enrollment.programmeId}`);
+    navigate(`/student-dashboard/courses/${enrollment.programmeId}?enrollmentId=${enrollment.id}`);
+  };
+
+  const formatLastActivity = (date?: string) => {
+    if (!date) return 'Not started';
+    const lastActivity = new Date(date);
+    const now = new Date();
+    const diffInDays = Math.floor((now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) return 'Today';
+    if (diffInDays === 1) return 'Yesterday';
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+    return `${Math.floor(diffInDays / 30)} months ago`;
   };
 
   if (isLoading) {
@@ -137,12 +170,23 @@ const MyCoursesPage: React.FC = () => {
   }
 
   if (error) {
+    const isAuthError = (error as any)?.response?.status === 401 || (error as any)?.response?.status === 403;
+    
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
-            <p className="text-red-600 mb-4">Failed to load courses</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
+            {isAuthError ? (
+              <>
+                <p className="text-orange-600 mb-4">Please log in to view your courses</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </>
+            ) : (
+              <>
+                <p className="text-red-600 mb-4">Failed to load courses</p>
+                <Button onClick={() => window.location.reload()}>Try Again</Button>
+              </>
+            )}
           </div>
         </div>
       </DashboardLayout>
@@ -241,7 +285,7 @@ const MyCoursesPage: React.FC = () => {
                 </div>
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -252,15 +296,15 @@ const MyCoursesPage: React.FC = () => {
                 </SelectContent>
               </Select>
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="TECHNOLOGY">Technology</SelectItem>
-                  <SelectItem value="BUSINESS">Business</SelectItem>
-                  <SelectItem value="HEALTH">Health</SelectItem>
-                  <SelectItem value="ARTS">Arts</SelectItem>
+                  <SelectItem value="Programming">Programming</SelectItem>
+                  <SelectItem value="Design">Design</SelectItem>
+                  <SelectItem value="Business">Business</SelectItem>
+                  <SelectItem value="Marketing">Marketing</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -270,15 +314,9 @@ const MyCoursesPage: React.FC = () => {
         {/* Course Tabs */}
         <Tabs defaultValue="active" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="active">
-              Active ({activeCourses.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed">
-              Completed ({completedCourses.length})
-            </TabsTrigger>
-            <TabsTrigger value="paused">
-              Paused ({pausedCourses.length})
-            </TabsTrigger>
+            <TabsTrigger value="active">Active ({activeCourses.length})</TabsTrigger>
+            <TabsTrigger value="completed">Completed ({completedCourses.length})</TabsTrigger>
+            <TabsTrigger value="paused">Paused ({pausedCourses.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-6">
@@ -287,98 +325,105 @@ const MyCoursesPage: React.FC = () => {
                 <CardContent className="pt-6 text-center">
                   <BookOpen className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                   <h3 className="text-lg font-semibold mb-2">No active courses</h3>
-                  <p className="text-gray-600 mb-4">
-                    Start your learning journey by enrolling in a course
+                  <p className="text-gray-600">
+                    Enroll in a course to get started!
                   </p>
-                  <Button onClick={() => navigate('/programs')}>
+                  <Button onClick={() => navigate('/programs')} className="mt-4">
                     Browse Courses
                   </Button>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {activeCourses.map((enrollment) => (
-                  <Card key={enrollment.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg mb-2">{enrollment.programme.title}</CardTitle>
-                          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                            {enrollment.programme.description}
-                          </p>
-                          <div className="flex items-center gap-2 mb-3">
-                            {getStatusBadge(enrollment.status)}
-                            {getLevelBadge(enrollment.programme.level)}
-                            <Badge variant="outline">{enrollment.programme.category}</Badge>
+                {activeCourses.map((enrollment) => {
+                  // Add defensive check for programme data
+                  if (!enrollment.programme) {
+                    console.warn('Enrollment missing programme data:', enrollment);
+                    return null;
+                  }
+
+                  return (
+                    <Card key={enrollment.id} className="hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg mb-2">{enrollment.programme.title || 'Unknown Course'}</CardTitle>
+                            <p className="text-gray-600 text-sm mb-3">
+                              {enrollment.programme.description || 'No description available'}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(enrollment.status)}
+                              {getLevelBadge(enrollment.programme.level)}
+                            </div>
+                          </div>
+                          {enrollment.programme.thumbnail && (
+                            <img
+                              src={enrollment.programme.thumbnail}
+                              alt={enrollment.programme.title || 'Course thumbnail'}
+                              className="w-16 h-16 object-cover rounded-lg"
+                            />
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Progress */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>Progress</span>
+                            <span>{Math.round(enrollment.progress.totalProgress)}%</span>
+                          </div>
+                          <Progress value={enrollment.progress.totalProgress} />
+                        </div>
+
+                        {/* Stats */}
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div className="text-center">
+                            <div className="font-semibold text-eduBlue-600">
+                              {enrollment.progress.completedLessons.length}
+                            </div>
+                            <div className="text-gray-500">Lessons</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-semibold text-eduOrange-600">
+                              {formatDuration(enrollment.progress.timeSpent)}
+                            </div>
+                            <div className="text-gray-500">Time</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-semibold text-green-600">
+                              {enrollment.programme.totalModules || 0}
+                            </div>
+                            <div className="text-gray-500">Modules</div>
                           </div>
                         </div>
-                        {enrollment.programme.thumbnail && (
-                          <img
-                            src={enrollment.programme.thumbnail}
-                            alt={enrollment.programme.title}
-                            className="w-16 h-16 object-cover rounded-lg"
-                          />
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={() => handleContinueLearning(enrollment)}
+                            className="flex-1"
+                          >
+                            <Play className="h-4 w-4 mr-2" />
+                            Continue Learning
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleViewCourse(enrollment)}
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        {/* Last Activity */}
+                        {enrollment.progress.lastActivityDate && (
+                          <div className="text-xs text-gray-500">
+                            Last activity: {formatLastActivity(enrollment.progress.lastActivityDate)}
+                          </div>
                         )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Progress */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Progress</span>
-                          <span>{Math.round(enrollment.progress.totalProgress)}%</span>
-                        </div>
-                        <Progress value={enrollment.progress.totalProgress} />
-                      </div>
-
-                      {/* Stats */}
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div className="text-center">
-                          <div className="font-semibold text-eduBlue-600">
-                            {enrollment.progress.completedLessons.length}
-                          </div>
-                          <div className="text-gray-500">Lessons</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-semibold text-eduOrange-600">
-                            {formatDuration(enrollment.progress.timeSpent)}
-                          </div>
-                          <div className="text-gray-500">Time</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-semibold text-green-600">
-                            {enrollment.programme.totalModules}
-                          </div>
-                          <div className="text-gray-500">Modules</div>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-2">
-                        <Button 
-                          onClick={() => handleContinueLearning(enrollment)}
-                          className="flex-1"
-                        >
-                          <Play className="h-4 w-4 mr-2" />
-                          Continue Learning
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => handleViewCourse(enrollment)}
-                        >
-                          <ArrowRight className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      {/* Last Activity */}
-                      {enrollment.progress.lastActivityDate && (
-                        <div className="text-xs text-gray-500">
-                          Last activity: {new Date(enrollment.progress.lastActivityDate).toLocaleDateString()}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -396,50 +441,58 @@ const MyCoursesPage: React.FC = () => {
               </Card>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {completedCourses.map((enrollment) => (
-                  <Card key={enrollment.id} className="border-green-200 bg-green-50/50">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg mb-2 flex items-center gap-2">
-                            {enrollment.programme.title}
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          </CardTitle>
-                          <p className="text-gray-600 text-sm mb-3">
-                            {enrollment.programme.description}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(enrollment.status)}
-                            {getLevelBadge(enrollment.programme.level)}
+                {completedCourses.map((enrollment) => {
+                  // Add defensive check for programme data
+                  if (!enrollment.programme) {
+                    console.warn('Enrollment missing programme data:', enrollment);
+                    return null;
+                  }
+
+                  return (
+                    <Card key={enrollment.id} className="border-green-200 bg-green-50/50">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg mb-2 flex items-center gap-2">
+                              {enrollment.programme.title || 'Unknown Course'}
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                            </CardTitle>
+                            <p className="text-gray-600 text-sm mb-3">
+                              {enrollment.programme.description || 'No description available'}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(enrollment.status)}
+                              {getLevelBadge(enrollment.programme.level)}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                        <div className="text-center">
-                          <div className="font-semibold text-green-600">
-                            {formatDuration(enrollment.progress.timeSpent)}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                          <div className="text-center">
+                            <div className="font-semibold text-green-600">
+                              {formatDuration(enrollment.progress.timeSpent)}
+                            </div>
+                            <div className="text-gray-500">Total Time</div>
                           </div>
-                          <div className="text-gray-500">Total Time</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-semibold text-green-600">
-                            {enrollment.progress.completedLessons.length}
+                          <div className="text-center">
+                            <div className="font-semibold text-green-600">
+                              {enrollment.progress.completedLessons.length}
+                            </div>
+                            <div className="text-gray-500">Lessons Completed</div>
                           </div>
-                          <div className="text-gray-500">Lessons Completed</div>
                         </div>
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        onClick={() => handleViewCourse(enrollment)}
-                        className="w-full"
-                      >
-                        View Certificate
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <Button 
+                          variant="outline" 
+                          onClick={() => handleViewCourse(enrollment)}
+                          className="w-full"
+                        >
+                          View Certificate
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -457,35 +510,43 @@ const MyCoursesPage: React.FC = () => {
               </Card>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {pausedCourses.map((enrollment) => (
-                  <Card key={enrollment.id} className="border-yellow-200 bg-yellow-50/50">
-                    <CardHeader>
-                      <CardTitle className="text-lg mb-2">{enrollment.programme.title}</CardTitle>
-                      <p className="text-gray-600 text-sm mb-3">
-                        {enrollment.programme.description}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(enrollment.status)}
-                        {getLevelBadge(enrollment.programme.level)}
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 mb-4">
-                        <div className="flex justify-between text-sm">
-                          <span>Progress</span>
-                          <span>{Math.round(enrollment.progress.totalProgress)}%</span>
+                {pausedCourses.map((enrollment) => {
+                  // Add defensive check for programme data
+                  if (!enrollment.programme) {
+                    console.warn('Enrollment missing programme data:', enrollment);
+                    return null;
+                  }
+
+                  return (
+                    <Card key={enrollment.id} className="border-yellow-200 bg-yellow-50/50">
+                      <CardHeader>
+                        <CardTitle className="text-lg mb-2">{enrollment.programme.title || 'Unknown Course'}</CardTitle>
+                        <p className="text-gray-600 text-sm mb-3">
+                          {enrollment.programme.description || 'No description available'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(enrollment.status)}
+                          {getLevelBadge(enrollment.programme.level)}
                         </div>
-                        <Progress value={enrollment.progress.totalProgress} />
-                      </div>
-                      <Button 
-                        onClick={() => handleContinueLearning(enrollment)}
-                        className="w-full"
-                      >
-                        Resume Learning
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2 mb-4">
+                          <div className="flex justify-between text-sm">
+                            <span>Progress</span>
+                            <span>{Math.round(enrollment.progress.totalProgress)}%</span>
+                          </div>
+                          <Progress value={enrollment.progress.totalProgress} />
+                        </div>
+                        <Button 
+                          onClick={() => handleContinueLearning(enrollment)}
+                          className="w-full"
+                        >
+                          Resume Learning
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -495,4 +556,4 @@ const MyCoursesPage: React.FC = () => {
   );
 };
 
-export default MyCoursesPage;
+export default MyCoursesPage; 

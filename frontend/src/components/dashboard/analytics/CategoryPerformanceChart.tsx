@@ -1,39 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { BarChart3, TrendingUp, Clock, Target } from 'lucide-react';
-import { analyticsApi, CategoryPerformance } from '@/services/analyticsApi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+interface CategoryPerformance {
+  category: string;
+  averageProgress: number;
+  completedCourses: number;
+  totalCourses: number;
+  totalStudyTime: number;
+  averageScore: number;
+}
 
 interface CategoryPerformanceChartProps {
   className?: string;
+  categoryPerformance?: CategoryPerformance[];
 }
 
-const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ className = '' }) => {
-  const [categoryData, setCategoryData] = useState<CategoryPerformance[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadCategoryData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await analyticsApi.getCategoryPerformance();
-        setCategoryData(data);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load category performance';
-        setError(errorMessage);
-        console.error('Error loading category performance:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadCategoryData();
-  }, []);
-
+const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ 
+  className = '', 
+  categoryPerformance = []
+}) => {
   const getCategoryColor = (index: number) => {
     const colors = [
       '#f97316', // orange
@@ -92,46 +80,7 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ cla
     return null;
   };
 
-  if (isLoading) {
-    return (
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <BarChart3 className="h-5 w-5" />
-            <span>Category Performance</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-64 w-full mb-4" />
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <BarChart3 className="h-5 w-5" />
-            <span>Category Performance</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">{error}</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (categoryData.length === 0) {
+  if (categoryPerformance.length === 0) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -152,7 +101,7 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ cla
     );
   }
 
-  const bestCategory = categoryData.reduce((best, current) => 
+  const bestCategory = categoryPerformance.reduce((best, current) => 
     current.averageProgress > best.averageProgress ? current : best
   );
 
@@ -174,7 +123,7 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ cla
         {/* Chart */}
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={categoryData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={categoryPerformance} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
               <XAxis 
                 dataKey="category" 
@@ -191,7 +140,7 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ cla
               />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="averageProgress" radius={[4, 4, 0, 0]}>
-                {categoryData.map((entry, index) => (
+                {categoryPerformance.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={getCategoryColor(index)} />
                 ))}
               </Bar>
@@ -201,36 +150,28 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ cla
 
         {/* Category Details */}
         <div className="space-y-3">
-          <h4 className="text-sm font-medium">Category Breakdown</h4>
-          {categoryData.map((category, index) => {
+          <h4 className="text-sm font-medium">Performance Breakdown</h4>
+          {categoryPerformance.map((category, index) => {
             const performance = getPerformanceLabel(category.averageProgress);
             return (
-              <div key={category.category} className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
-                <div 
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: getCategoryColor(index) }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium truncate">{category.category}</span>
-                    <Badge variant="outline" className={`text-xs ${performance.color}`}>
-                      {performance.label}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                    <div className="flex items-center space-x-1">
-                      <Target className="h-3 w-3" />
-                      <span>{Math.round(category.averageProgress)}%</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <Clock className="h-3 w-3" />
-                      <span>{formatStudyTime(category.totalStudyTime)}</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <BarChart3 className="h-3 w-3" />
-                      <span>{category.completedCourses}/{category.totalCourses}</span>
+              <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: getCategoryColor(index) }}
+                  />
+                  <div>
+                    <div className="font-medium text-sm">{category.category}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {category.completedCourses}/{category.totalCourses} courses
                     </div>
                   </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium text-sm">{Math.round(category.averageProgress)}%</div>
+                  <Badge variant="outline" className={`text-xs ${performance.color}`}>
+                    {performance.label}
+                  </Badge>
                 </div>
               </div>
             );
@@ -238,24 +179,18 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({ cla
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
-              {categoryData.length}
+              {Math.round(categoryPerformance.reduce((acc, cat) => acc + cat.averageProgress, 0) / categoryPerformance.length)}%
             </div>
-            <div className="text-xs text-muted-foreground">Categories</div>
+            <div className="text-xs text-muted-foreground">Average Progress</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              {Math.round(categoryData.reduce((acc, cat) => acc + cat.averageProgress, 0) / categoryData.length)}%
+              {formatStudyTime(categoryPerformance.reduce((acc, cat) => acc + cat.totalStudyTime, 0))}
             </div>
-            <div className="text-xs text-muted-foreground">Avg Progress</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {formatStudyTime(categoryData.reduce((acc, cat) => acc + cat.totalStudyTime, 0))}
-            </div>
-            <div className="text-xs text-muted-foreground">Total Time</div>
+            <div className="text-xs text-muted-foreground">Total Study Time</div>
           </div>
         </div>
       </CardContent>

@@ -1,51 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { analyticsApi, ProgressHistoryEntry } from '@/services/analyticsApi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
+interface ProgressData {
+  date: string;
+  progress: number;
+  studyTime?: number;
+  coursesCompleted?: number;
+}
 
 interface ProgressChartProps {
   className?: string;
-  days?: number;
+  progressData?: ProgressData[];
+  totalProgress?: number;
 }
 
-const ProgressChart: React.FC<ProgressChartProps> = ({ className = '', days = 30 }) => {
-  const [data, setData] = useState<ProgressHistoryEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadProgressHistory = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const progressHistory = await analyticsApi.getProgressHistory(days);
-        setData(progressHistory);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load progress history';
-        setError(errorMessage);
-        console.error('Error loading progress history:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadProgressHistory();
-  }, [days]);
-
+const ProgressChart: React.FC<ProgressChartProps> = ({ 
+  className = '', 
+  progressData = [],
+  totalProgress = 0
+}) => {
   const getTrend = () => {
-    if (data.length < 2) return { trend: 'neutral', change: 0 };
+    if (progressData.length < 2) return { trend: 'neutral', change: 0 };
     
-    const recent = data.slice(-7); // Last 7 days
-    const earlier = data.slice(-14, -7); // Previous 7 days
+    const recent = progressData.slice(-7); // Last 7 days
+    const earlier = progressData.slice(-14, -7); // Previous 7 days
     
     if (recent.length === 0 || earlier.length === 0) return { trend: 'neutral', change: 0 };
     
     const recentAvg = recent.reduce((acc, d) => acc + d.progress, 0) / recent.length;
     const earlierAvg = earlier.reduce((acc, d) => acc + d.progress, 0) / earlier.length;
     
-    const change = ((recentAvg - earlierAvg) / earlierAvg) * 100;
+    const change = earlierAvg > 0 ? ((recentAvg - earlierAvg) / earlierAvg) * 100 : 0;
     
     if (change > 5) return { trend: 'up', change };
     if (change < -5) return { trend: 'down', change };
@@ -63,7 +50,7 @@ const ProgressChart: React.FC<ProgressChartProps> = ({ className = '', days = 30
 
   const CustomTooltip = ({ active, payload, label }: {
     active?: boolean;
-    payload?: Array<{ payload: ProgressHistoryEntry }>;
+    payload?: Array<{ payload: ProgressData }>;
     label?: string;
   }) => {
     if (active && payload && payload.length) {
@@ -74,50 +61,23 @@ const ProgressChart: React.FC<ProgressChartProps> = ({ className = '', days = 30
           <p className="text-sm text-blue-600">
             Progress: {Math.round(data.progress)}%
           </p>
-          <p className="text-sm text-green-600">
-            Study Time: {Math.round(data.studyTime)}m
-          </p>
-          <p className="text-sm text-purple-600">
-            Courses Completed: {data.coursesCompleted}
-          </p>
+          {data.studyTime && (
+            <p className="text-sm text-green-600">
+              Study Time: {Math.round(data.studyTime)}m
+            </p>
+          )}
+          {data.coursesCompleted && (
+            <p className="text-sm text-purple-600">
+              Courses Completed: {data.coursesCompleted}
+            </p>
+          )}
         </div>
       );
     }
     return null;
   };
 
-  if (isLoading) {
-    return (
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            Progress Trend
-            <Skeleton className="h-4 w-16" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-64 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card className={className}>
-        <CardHeader>
-          <CardTitle>Progress Trend</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">{error}</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (data.length === 0) {
+  if (progressData.length === 0) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -165,7 +125,7 @@ const ProgressChart: React.FC<ProgressChartProps> = ({ className = '', days = 30
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={progressData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
               <XAxis 
                 dataKey="date" 
@@ -192,19 +152,19 @@ const ProgressChart: React.FC<ProgressChartProps> = ({ className = '', days = 30
         <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
-              {Math.round(data[data.length - 1]?.progress || 0)}%
+              {Math.round(totalProgress)}%
             </div>
             <div className="text-xs text-muted-foreground">Current Progress</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              {Math.round(data.reduce((acc, d) => acc + d.studyTime, 0) / data.length)}m
+              {progressData.length > 0 ? Math.round(progressData[progressData.length - 1]?.studyTime || 0) : 0}m
             </div>
-            <div className="text-xs text-muted-foreground">Avg. Daily Study</div>
+            <div className="text-xs text-muted-foreground">Today's Study Time</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">
-              {data.reduce((acc, d) => acc + d.coursesCompleted, 0)}
+              {progressData.length > 0 ? progressData[progressData.length - 1]?.coursesCompleted || 0 : 0}
             </div>
             <div className="text-xs text-muted-foreground">Courses Completed</div>
           </div>

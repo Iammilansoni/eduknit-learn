@@ -13,6 +13,8 @@ import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextUtils';
 import { useEnrollment } from '@/hooks/useCourseProgress';
 import EnrollmentSuccessModal from '@/components/enrollment/EnrollmentSuccessModal';
+import { useEffect } from 'react';
+import axios from 'axios';
 
 interface ProgramModule {
   id: string;
@@ -80,29 +82,67 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
   const [activeTab, setActiveTab] = useState("overview");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+  const [courseSlugToId, setCourseSlugToId] = useState<Record<string, string>>({});
+  const [courses, setCourses] = useState<any[]>([]);
+  const [mappingLoading, setMappingLoading] = useState(true);
+  const [mappingError, setMappingError] = useState<string | null>(null);
   
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { enrollInCourse, loading: enrollLoading, error: enrollError } = useEnrollment();
 
+  // Fetch all courses from backend
+  useEffect(() => {
+    const fetchCourses = async () => {
+      setMappingLoading(true);
+      setMappingError(null);
+      try {
+        const res = await axios.get('/api/courses');
+        setCourses(res.data.data || []);
+      } catch (err: any) {
+        setMappingError('Failed to load course data');
+      } finally {
+        setMappingLoading(false);
+      }
+    };
+    fetchCourses();
+  }, []);
+
+  // Fetch course mapping from backend
+  useEffect(() => {
+    const fetchMapping = async () => {
+      setMappingLoading(true);
+      setMappingError(null);
+      try {
+        const res = await axios.get('/api/courses/mapping');
+        setCourseSlugToId(res.data.data || {});
+      } catch (err: any) {
+        setMappingError('Failed to load course mapping');
+      } finally {
+        setMappingLoading(false);
+      }
+    };
+    fetchMapping();
+  }, []);
+
   // Extract course slug from current URL
   const courseSlug = location.pathname.split('/programs/')[1] || '';
-  
-  // Map course slugs to programme IDs (you'll need to replace these with actual IDs from your database)
-  const courseSlugToId: Record<string, string> = {
-    'communication-skills': '674b5e3d1234567890abcdef', // Replace with actual Programme ID
-    'digital-marketing': '674b5e3d1234567890abcdeg',   // Replace with actual Programme ID
-    'basics-of-ai': '674b5e3d1234567890abcdeh',        // Replace with actual Programme ID
-    'ai-prompt-crafting': '674b5e3d1234567890abcdei',  // Replace with actual Programme ID
-    'data-analytics': '674b5e3d1234567890abcdej',      // Replace with actual Programme ID
-    'bioskills': '674b5e3d1234567890abcdek',           // Replace with actual Programme ID
-    'decision-making': '674b5e3d1234567890abcdel'      // Replace with actual Programme ID
-  };
-
-  const programmeId = courseSlugToId[courseSlug];
+  // Find the current course by slug (assuming slug is generated from title)
+  const currentCourse = courses.find(c => c.slug === courseSlug);
+  const dynamicTitle = currentCourse?.title || title;
+  const dynamicDescription = currentCourse?.description || 'Course description coming soon.';
+  const dynamicDuration = currentCourse?.duration || 'N/A';
+  const dynamicTimeframe = currentCourse?.timeframe || 'N/A';
+  const dynamicInstructor = currentCourse?.instructor || 'N/A';
+  const dynamicImageUrl = currentCourse?.imageUrl;
 
   const handleEnrollNow = async () => {
+    console.log('Enroll Now clicked!');
+    console.log('Course slug:', courseSlug);
+    console.log('Programme ID:', courseSlugToId[courseSlug]);
+    console.log('User:', user);
+
     if (!user) {
       toast({
         title: "Authentication Required",
@@ -113,10 +153,10 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
       return;
     }
 
-    if (!programmeId) {
+    if (!courseSlugToId[courseSlug]) {
       toast({
         title: "Error",
-        description: "Course not found. Please try again later.",
+        description: `Course not found for slug: ${courseSlug}. Please try again later.`,
         variant: "destructive",
       });
       return;
@@ -124,13 +164,16 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
 
     try {
       setEnrollmentLoading(true);
-      await enrollInCourse(programmeId);
+      console.log('Calling enrollInCourse with programmeId:', courseSlugToId[courseSlug]);
+      
+      const result = await enrollInCourse(courseSlugToId[courseSlug]);
+      console.log('Enrollment result:', result);
       
       setShowSuccessModal(true);
       
       toast({
         title: "Enrollment Successful!",
-        description: `You've been enrolled in ${title}`,
+        description: `You've been enrolled in ${dynamicTitle}`,
       });
     } catch (error: unknown) {
       console.error('Enrollment error:', error);
@@ -169,20 +212,25 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
       <div className="w-full lg:w-1/2">
         <div className="bg-white rounded-2xl p-8 shadow-xl">
           <p className="uppercase text-sm font-semibold text-gray-500 mb-2">Certificate Program</p>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Communication Skills</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">{dynamicTitle}</h1>
           <p className="text-lg text-gray-700 mb-6">
-            Speak with confidence! Build communication skills through group discussions, debates, presentations, and real practice with peers and coaches — made for Class 11th & 12th students.
+            {dynamicDescription}
           </p>
 
           <div className="flex items-center gap-6 text-sm text-gray-600 mb-6">
             <div className="flex items-center gap-2">
               <CalendarDays className="w-5 h-5" />
-              <span>1-2 months</span>
+              <span>{dynamicTimeframe}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5" />
-              <span>3-5 hours/week</span>
+              <span>{dynamicDuration}</span>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-gray-600 mb-6">
+            <span className="font-semibold">Instructor:</span>
+            <span>{dynamicInstructor}</span>
           </div>
 
 <div className="flex gap-x-4">
@@ -498,7 +546,7 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
       <EnrollmentSuccessModal
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
-        courseTitle={title}
+        courseTitle={dynamicTitle}
         courseSlug={courseSlug}
       />
     </Layout>

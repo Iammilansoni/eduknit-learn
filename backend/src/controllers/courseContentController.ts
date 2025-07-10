@@ -723,3 +723,20 @@ export const getNextModule = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getCourseMapping = async (req: Request, res: Response) => {
+    try {
+        const courses = await Programme.find({ isActive: true }).select('_id title slug');
+        
+        const mapping: Record<string, string> = {};
+        courses.forEach((course: any) => {
+            const slug = course.slug || course.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            mapping[slug] = course._id.toString();
+        });
+        
+        res.json({ success: true, data: mapping });
+    } catch (error) {
+        console.error('Error fetching course mapping:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch course mapping' });
+    }
+};

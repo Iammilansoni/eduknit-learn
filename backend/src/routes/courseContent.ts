@@ -8,7 +8,8 @@ import {
     getLessonDetails,
     getLessonContent,
     submitQuiz,
-    getNextModule
+    getNextModule,
+    getCourseMapping
 } from '../controllers/courseContentController';
 
 const router = express.Router();
@@ -19,6 +20,13 @@ const router = express.Router();
  * @access Public
  */
 router.get('/', getAllCourses);
+
+/**
+ * @route GET /api/courses/mapping
+ * @desc Get course slug to ID mapping
+ * @access Public
+ */
+router.get('/mapping', getCourseMapping);
 
 /**
  * @route GET /api/courses/:id

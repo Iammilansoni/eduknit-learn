@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 import type { AxiosRequestConfig } from 'axios';
 
-// API base URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// API base URL - Use relative path to go through Vite proxy
+const API_BASE_URL = '/api';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
@@ -19,9 +19,17 @@ api.interceptors.request.use(
   (config) => {
     // Tokens are automatically sent via HTTP-only cookies
     // No need to manually add Authorization header
+    console.log('API Request Interceptor:', {
+      url: config.url,
+      method: config.method,
+      baseURL: config.baseURL,
+      withCredentials: config.withCredentials,
+      headers: config.headers
+    });
     return config;
   },
   (error) => {
+    console.error('API Request Interceptor Error:', error);
     return Promise.reject(error);
   }
 );
@@ -29,11 +37,24 @@ api.interceptors.request.use(
 // Response interceptor for token refresh and error handling
 api.interceptors.response.use(
   (response: AxiosResponse) => {
+    console.log('API Response Interceptor Success:', {
+      url: response.config.url,
+      status: response.status,
+      statusText: response.statusText
+    });
     return response;
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
+    console.log('API Response Interceptor Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      message: error.message
+    });
+    
+    // Handle 401 errors (unauthorized)
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
@@ -66,15 +87,20 @@ api.interceptors.response.use(
             return api(originalRequest);
           }
         } catch (refreshError) {
-          // Refresh failed, clear user data and redirect to login only if not on public page
-          localStorage.removeItem('user');
-          if (!isPublicPage) {
-            window.location.href = '/login';
-          }
-          return Promise.reject(refreshError);
+          // Refresh failed, but don't immediately redirect to login
+          // Let the component handle the error gracefully
+          console.log('Token refresh failed, but continuing without redirect');
+          return Promise.reject(error);
         }
       }
     }
+    
+    // Handle 403 errors (forbidden) - don't redirect, just return the error
+    if (error.response?.status === 403) {
+      console.log('Access forbidden, but not redirecting');
+      return Promise.reject(error);
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -401,6 +427,14 @@ export const userAPI = {
     const response = await api.get(`/auth/verify-email?token=${token}`);
     return response.data;
   },
+
+  // Get user's enrolled courses
+  getUserCourses: () =>
+    api.get<ApiResponse<UserCoursesResponse>>('/user/courses').then(res => res.data),
+  
+  // Get user's learning statistics
+  getUserLearningStats: () =>
+    api.get<ApiResponse<UserLearningStatsResponse>>('/user/learning-stats').then(res => res.data),
 };
 
 
@@ -502,7 +536,13 @@ export const progressApi = {
 
   // Enroll in a program
   enrollInProgram: async (programmeId: string): Promise<ApiResponse<EnrollmentResponse>> => {
+    console.log('API service: Making enrollment request');
+    console.log('Request URL:', '/student/enroll');
+    console.log('Request data:', { programmeId });
+    console.log('Full URL:', `${api.defaults.baseURL}/student/enroll`);
+    
     const response = await api.post('/student/enroll', { programmeId });
+    console.log('API service: Enrollment response received:', response);
     return response.data;
   },
 
@@ -548,15 +588,27 @@ export const progressApi = {
 // Error handling utility
 export const handleApiError = (error: AxiosError): string => {
   const data = error.response?.data as Partial<ApiResponse> | undefined;
+  
+  // Check for error message in the nested error object (backend format)
+  if (data?.error?.message) {
+    return data.error.message;
+  }
+  
+  // Check for direct message property
   if (data?.message) {
     return data.message;
   }
+  
+  // Check for validation errors array
   if (data?.errors) {
     return data.errors.map((e) => e.message).join(', ');
   }
+  
+  // Fallback to axios error message
   if (error.message) {
     return error.message;
   }
+  
   return 'An unexpected error occurred';
 };
 
@@ -824,7 +876,13 @@ export const progressAPI = {
   // Get smart progress
   getSmartProgress: (courseId: string) =>
     api.get<ApiResponse<SmartProgressResponse>>(`/progress/smart/${courseId}`).then(res => res.data),
+
+  // Get general progress overview
+  getGeneralProgress: () =>
+    api.get<ApiResponse<GeneralProgressResponse>>('/progress').then(res => res.data),
 };
+
+
 
 // Student API
 export const studentAPI = {
@@ -875,7 +933,126 @@ export const studentAPI = {
   // Enroll in program
   enrollInProgram: (programmeId: string) =>
     api.post<ApiResponse<EnrollmentResponse>>('/student/enroll', { programmeId }).then(res => res.data),
+  
+  // Mark lesson as completed
+  markLessonCompleted: (data: {
+    enrollmentId: string;
+    moduleId?: string;
+    lessonId: string;
+    timeSpent?: number;
+  }) =>
+    api.post<ApiResponse<any>>('/student/lesson/complete', data).then(res => res.data),
+  
+  // Update lesson progress
+  updateLessonProgress: (data: {
+    enrollmentId: string;
+    lessonId: string;
+    progressPercentage: number;
+    timeSpent?: number;
+  }) =>
+    api.put<ApiResponse<any>>('/student/lesson/progress', data).then(res => res.data),
 };
+
+// Type definitions for new endpoints
+export interface GeneralProgressResponse {
+  userId: string;
+  overview: {
+    totalEnrollments: number;
+    activeEnrollments: number;
+    completedEnrollments: number;
+    overallProgress: number;
+    totalLessonsCompleted: number;
+    totalTimeSpent: number;
+    totalQuizzesTaken: number;
+    averageQuizScore: number;
+  };
+  recentActivity: {
+    lessonsCompleted: number;
+    quizzesTaken: number;
+    timeSpent: number;
+  };
+  courses: Array<{
+    courseId: string;
+    title: string;
+    category: string;
+    status: string;
+    progress: number;
+    enrollmentDate: string;
+    lastActivity: string;
+  }>;
+}
+
+export interface UserCoursesResponse {
+  userId: string;
+  totalCourses: number;
+  courses: Array<{
+    enrollmentId: string;
+    courseId: string;
+    title: string;
+    description: string;
+    category: string;
+    level: string;
+    totalLessons: number;
+    estimatedDuration: number;
+    price: number;
+    currency: string;
+    imageUrl?: string;
+    enrollmentDate: string;
+    status: string;
+    progress: {
+      totalProgress: number;
+      completedLessons: number;
+      timeSpent: number;
+      lastActivityDate: string;
+    };
+    completionDate?: string;
+    certificateIssued: boolean;
+  }>;
+}
+
+export interface UserLearningStatsResponse {
+  userId: string;
+  overview: {
+    totalEnrollments: number;
+    activeEnrollments: number;
+    completedEnrollments: number;
+    overallProgress: number;
+    totalLessonsCompleted: number;
+    totalTimeSpent: number;
+    studyStreak: number;
+  };
+  performance: {
+    totalQuizzesTaken: number;
+    averageQuizScore: number;
+    highestQuizScore: number;
+    quizSuccessRate: number;
+    averageTimePerLesson: number;
+  };
+  recentActivity: {
+    last7Days: Array<{
+      _id: string;
+      lessonsCompleted: number;
+      timeSpent: number;
+    }>;
+    last30DaysTimeSpent: number;
+  };
+  categoryPerformance: Array<{
+    _id: string;
+    averageProgress: number;
+    totalCourses: number;
+    totalTimeSpent: number;
+  }>;
+  weeklyProgress: Array<{
+    _id: number;
+    lessonsCompleted: number;
+    timeSpent: number;
+  }>;
+  timeBreakdown: {
+    totalStudyTime: number;
+    recentStudyTime: number;
+    averageDailyStudyTime: number;
+  };
+}
 
 // Auth API
 export const authAPI = {

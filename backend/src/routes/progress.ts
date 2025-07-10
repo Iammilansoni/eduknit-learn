@@ -9,13 +9,21 @@ import {
     getQuizResults,
     getProgressDashboard,
     getUserSmartProgress,
-    getCourseProgressDetails
+    getCourseProgressDetails,
+    getGeneralProgress
 } from '../controllers/progressController';
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(authenticateJWT);
+
+/**
+ * @route GET /api/progress
+ * @desc Get general progress overview for the authenticated user
+ * @access Private
+ */
+router.get('/', getGeneralProgress);
 
 /**
  * @route GET /api/progress/student/:studentId

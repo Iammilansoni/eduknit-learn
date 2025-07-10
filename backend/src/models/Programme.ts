@@ -5,6 +5,7 @@ import { Schema, model, Document } from 'mongoose';
  */
 export interface IProgramme extends Document {
     title: string;
+    slug: string;
     description: string;
     category: 'AI_CERTIFICATE' | 'DATA_CERTIFICATION' | 'PROFESSIONAL_SKILLS' | 'TECHNICAL_SKILLS';
     instructor: string;
@@ -36,6 +37,14 @@ const ProgrammeSchema = new Schema<IProgramme>(
             required: true,
             trim: true,
             maxlength: 200,
+            index: true
+        },
+        slug: {
+            type: String,
+            required: true,
+            unique: true,
+            trim: true,
+            lowercase: true,
             index: true
         },
         description: {
@@ -198,5 +207,19 @@ ProgrammeSchema.statics.searchProgrammes = function(query: string, filters: any 
     return this.find(searchCriteria)
         .sort(query ? { score: { $meta: 'textScore' } } : { createdAt: -1 });
 };
+
+// Pre-save middleware to generate slug from title
+ProgrammeSchema.pre('save', function(next) {
+    if (this.isModified('title') || this.isNew) {
+        // Generate slug from title
+        this.slug = this.title
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
+            .replace(/\s+/g, '-') // Replace spaces with hyphens
+            .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+            .trim();
+    }
+    next();
+});
 
 export default model<IProgramme>('Programme', ProgrammeSchema);

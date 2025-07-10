@@ -9,7 +9,7 @@ import StatisticsCards from '@/components/dashboard/statistics/StatisticsCards';
 import DiscordWidget from '@/components/integrations/DiscordWidget';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Book, FileText, Play, BarChart, Video, User, Settings2, Link2 } from 'lucide-react';
+import { Book, FileText, Play, BarChart, Video, User, Settings2, Link2, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Award, CalendarIcon, Clock } from 'lucide-react';
@@ -17,98 +17,61 @@ import ProgressChart from '@/components/dashboard/analytics/ProgressChart';
 import StreakCounter from '@/components/dashboard/analytics/StreakCounter';
 import PointsAndLevel from '@/components/dashboard/analytics/PointsAndLevel';
 import CategoryPerformanceChart from '@/components/dashboard/analytics/CategoryPerformanceChart';
+import useStudentDashboard from '@/hooks/useStudentDashboard';
+import useStudentEnrollments from '@/hooks/useStudentEnrollments';
+import useStudentProfile from '@/hooks/useStudentProfile';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const StudentDashboardPage = () => {
   const [date, setDate] = React.useState<Date | undefined>(new Date());
   const navigate = useNavigate();
   
-  // Mock data for student dashboard
-  const enrolledCourses = [
-    {
-      id: 1,
-      title: 'Communication Skills',
-      progress: 65,
-      instructor: 'Jessica Williams, MBA',
-      nextLesson: 'Advanced Presentation Techniques',
-      image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
-      status: 'In Progress',
-      lastAccessed: '2 days ago',
-      nextSessionDate: '2025-04-18T15:30:00',
-      zoomLink: 'https://zoom.us/j/123456789',
-      path: '/programs/communication-skills'
-    },
-    {
-      id: 2,
-      title: 'Digital Marketing',
-      progress: 32,
-      instructor: 'Prof. Michael Chen',
-      nextLesson: 'Social Media Strategy',
-      image: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=600&q=80',
-      status: 'In Progress',
-      lastAccessed: '5 days ago',
-      nextSessionDate: '2025-04-20T10:00:00',
-      zoomLink: 'https://zoom.us/j/987654321',
-      path: '/programs/digital-marketing'
-    },
-    {
-      id: 3,
-      title: 'Basics of AI',
-      progress: 25,
-      instructor: 'Dr. Aisha Johnson',
-      nextLesson: 'Machine Learning Concepts',
-      image: 'https://images.unsplash.com/photo-1583508915901-b5f84c1dcde1?auto=format&fit=crop&w=600&q=80',
-      status: 'In Progress',
-      lastAccessed: 'Today',
-      nextSessionDate: '2025-04-19T14:00:00',
-      zoomLink: 'https://zoom.us/j/567891234',
-      path: '/programs/basics-of-ai'
-    },
-    {
-      id: 4,
-      title: 'AI Prompt Crafting',
-      progress: 45,
-      instructor: 'Dr. Mark Thompson',
-      nextLesson: 'Advanced Prompt Patterns',
-      image: 'https://images.unsplash.com/photo-1581092795360-fd1ca04f0952?auto=format&fit=crop&w=600&q=80',
-      status: 'In Progress',
-      lastAccessed: '3 days ago',
-      path: '/programs/ai-prompt-crafting'
-    },
-    {
-      id: 5,
-      title: 'Data Analytics',
-      progress: 70,
-      instructor: 'Sarah Chen, PhD',
-      nextLesson: 'Dashboard Creation',
-      image: 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=crop&w=600&q=80',
-      status: 'Almost Complete',
-      lastAccessed: 'Yesterday',
-      path: '/programs/data-analytics'
-    },
-    {
-      id: 6,
-      title: 'BioSkills',
-      progress: 15,
-      instructor: 'Dr. James Morrison',
-      nextLesson: 'Applied Cellular Biology',
-      image: 'https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&w=600&q=80',
-      status: 'In Progress',
-      lastAccessed: 'Last week',
-      path: '/programs/bioskills'
-    },
-    {
-      id: 7,
-      title: 'Decision-Making Skills',
-      progress: 50,
-      instructor: 'Prof. Emma Rodriguez',
-      nextLesson: 'Cost-Benefit Analysis',
-      image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=600&q=80',
-      status: 'In Progress',
-      lastAccessed: '4 days ago',
-      path: '/programs/decision-making'
-    }
-  ];
+  // Live data hooks
+  const { 
+    dashboard, 
+    progressDashboard, 
+    loading: dashboardLoading, 
+    error: dashboardError, 
+    refetch: refetchDashboard 
+  } = useStudentDashboard();
+  
+  const { 
+    enrollments, 
+    loading: enrollmentsLoading, 
+    error: enrollmentsError 
+  } = useStudentEnrollments();
+  
+  const { 
+    profile, 
+    loading: profileLoading, 
+    error: profileError 
+  } = useStudentProfile();
 
+  // Transform enrollments data for CourseList component
+  const enrolledCourses = React.useMemo(() => {
+    if (!enrollments || !dashboard?.enrolledPrograms) return [];
+    
+    return enrollments.map(enrollment => {
+      const program = dashboard.enrolledPrograms.find(p => p._id === enrollment.programId);
+      return {
+        id: enrollment._id,
+        title: program?.title || 'Unknown Course',
+        progress: enrollment.progress || 0,
+        instructor: program?.instructor || 'TBD',
+        nextLesson: enrollment.nextLesson || 'Continue where you left off',
+        image: program?.image || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+        status: enrollment.progress >= 100 ? 'Completed' : enrollment.progress > 0 ? 'In Progress' : 'Not Started',
+        lastAccessed: enrollment.lastAccessed ? new Date(enrollment.lastAccessed).toLocaleDateString() : 'Never',
+        nextSessionDate: enrollment.nextSessionDate,
+        zoomLink: enrollment.zoomLink,
+        path: `/programs/${program?.slug || enrollment.programId}`,
+        enrollmentDate: enrollment.enrollmentDate,
+        completionDate: enrollment.completionDate
+      };
+    });
+  }, [enrollments, dashboard?.enrolledPrograms]);
+
+  // Mock data for features not yet implemented in backend
   const upcomingDeadlines = [
     {
       id: 1,
@@ -176,7 +139,7 @@ const StudentDashboardPage = () => {
     }
   ];
 
-  const handleContinueLearning = (courseId: number) => {
+  const handleContinueLearning = (courseId: string) => {
     const course = enrolledCourses.find(c => c.id === courseId);
     if (course && course.path) {
       navigate(course.path);
@@ -206,17 +169,70 @@ const StudentDashboardPage = () => {
     });
   };
 
+  // Loading state
+  if (dashboardLoading || enrollmentsLoading || profileLoading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-eduBlue-500" />
+              <p className="text-gray-600 dark:text-gray-400">Loading your dashboard...</p>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Error state
+  if (dashboardError || enrollmentsError || profileError) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto">
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {dashboardError || enrollmentsError || profileError}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="ml-4"
+                onClick={() => {
+                  refetchDashboard();
+                }}
+              >
+                Try Again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto">
         {/* Dashboard Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Student Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-300">Welcome back! Track your progress and manage your learning journey.</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            Welcome back, {profile?.firstName || 'Student'}!
+          </h1>
+          <p className="text-gray-600 dark:text-gray-300">
+            Track your progress and manage your learning journey.
+          </p>
         </div>
 
-        {/* Overview Cards */}
-        <DashboardOverviewCards />
+        {/* Overview Cards with Live Data */}
+        <DashboardOverviewCards 
+          totalCourses={dashboard?.totalEnrollments || 0}
+          completedCourses={dashboard?.completedCourses || 0}
+          totalProgress={dashboard?.averageProgress || 0}
+          totalHours={dashboard?.totalHoursLearned || 0}
+          currentStreak={progressDashboard?.currentStreak || 0}
+          totalPoints={progressDashboard?.totalPoints || 0}
+        />
 
         {/* Quick Actions Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -324,10 +340,25 @@ const StudentDashboardPage = () => {
               </TabsList>
               
               <TabsContent value="my-courses" className="space-y-6">
-                <CourseList 
-                  courses={enrolledCourses} 
-                  onContinueLearning={handleContinueLearning}
-                />
+                {enrolledCourses.length > 0 ? (
+                  <CourseList 
+                    courses={enrolledCourses} 
+                    onContinueLearning={handleContinueLearning}
+                  />
+                ) : (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <Book className="h-16 w-16 text-gray-400 mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No courses enrolled yet</h3>
+                      <p className="text-gray-600 dark:text-gray-400 mb-4 text-center">
+                        Start your learning journey by exploring our course catalog
+                      </p>
+                      <Button onClick={() => navigate('/programs')}>
+                        Explore Courses
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
                 <Button 
                   variant="ghost" 
                   className="w-full border border-dashed border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
@@ -339,12 +370,20 @@ const StudentDashboardPage = () => {
               
               <TabsContent value="analytics" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                  <StreakCounter />
-                  <PointsAndLevel />
+                  <StreakCounter currentStreak={progressDashboard?.currentStreak || 0} />
+                  <PointsAndLevel 
+                    totalPoints={progressDashboard?.totalPoints || 0}
+                    level={progressDashboard?.level || 1}
+                  />
                 </div>
                 <div className="grid grid-cols-1 gap-6">
-                  <ProgressChart />
-                  <CategoryPerformanceChart />
+                  <ProgressChart 
+                    progressData={progressDashboard?.progressHistory || []}
+                    totalProgress={dashboard?.averageProgress || 0}
+                  />
+                  <CategoryPerformanceChart 
+                    categoryPerformance={progressDashboard?.categoryPerformance || []}
+                  />
                 </div>
               </TabsContent>
               
@@ -439,7 +478,14 @@ const StudentDashboardPage = () => {
               </TabsContent>
             </Tabs>
             
-            <StatisticsCards />
+            <StatisticsCards 
+              totalEnrollments={dashboard?.totalEnrollments || 0}
+              completedCourses={dashboard?.completedCourses || 0}
+              averageProgress={dashboard?.averageProgress || 0}
+              totalHoursLearned={dashboard?.totalHoursLearned || 0}
+              currentStreak={progressDashboard?.currentStreak || 0}
+              totalPoints={progressDashboard?.totalPoints || 0}
+            />
           </div>
           
           {/* Right column - Calendar, Notifications, and Discord Widget */}
