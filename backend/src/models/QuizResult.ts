@@ -1,4 +1,4 @@
-import { Schema, model, Document, Model } from 'mongoose';
+import { Schema, model, Document, Model, Types } from 'mongoose';
 
 /**
  * Interface representing a Quiz Result document in MongoDB.
@@ -194,8 +194,8 @@ QuizResultSchema.statics.getAverageScore = function(studentId: string, programme
     return this.aggregate([
         {
             $match: {
-                studentId: new Schema.Types.ObjectId(studentId),
-                programmeId: new Schema.Types.ObjectId(programmeId)
+                studentId: new Types.ObjectId(studentId),
+                programmeId: new Types.ObjectId(programmeId)
             }
         },
         {
@@ -216,7 +216,7 @@ QuizResultSchema.statics.getAverageScore = function(studentId: string, programme
 // Static method to get quiz statistics
 QuizResultSchema.statics.getQuizStats = function(lessonId: string) {
     return this.aggregate([
-        { $match: { lessonId: new Schema.Types.ObjectId(lessonId) } },
+        { $match: { lessonId: new Types.ObjectId(lessonId) } },
         {
             $group: {
                 _id: '$studentId',

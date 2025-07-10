@@ -319,7 +319,7 @@ const LessonProgressBar: React.FC<LessonProgressBarProps> = ({
               <div className="flex gap-1">
                 {[...Array(10)].map((_, i) => (
                   <div
-                    key={i}
+                    key={`progress-dot-${lessonId}-${i}`}
                     className={`w-2 h-2 rounded-full ${
                       i < Math.floor(progress / 10) ? getProgressColor() : 'bg-gray-200'
                     }`}

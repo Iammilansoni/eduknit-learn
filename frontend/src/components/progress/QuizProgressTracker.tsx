@@ -241,7 +241,7 @@ const QuizProgressTracker: React.FC<QuizProgressTrackerProps> = ({
             className="space-y-3"
           >
             {question.options?.map((option, index) => (
-              <div key={index} className="flex items-center space-x-2">
+              <div key={`${question.id}-option-${index}`} className="flex items-center space-x-2">
                 <RadioGroupItem value={option} id={`${question.id}-${index}`} />
                 <Label htmlFor={`${question.id}-${index}`} className="flex-1 cursor-pointer">
                   {option}
@@ -257,7 +257,7 @@ const QuizProgressTracker: React.FC<QuizProgressTrackerProps> = ({
             {question.options?.map((option, index) => {
               const isChecked = Array.isArray(userAnswer) ? userAnswer.includes(option) : false;
               return (
-                <div key={index} className="flex items-center space-x-2">
+                <div key={`${question.id}-option-${index}`} className="flex items-center space-x-2">
                   <Checkbox
                     id={`${question.id}-${index}`}
                     checked={isChecked}

@@ -1,72 +1,16 @@
 import { Request, Response } from 'express';
+import { Types } from 'mongoose';
 import Programme from '../models/Programme';
 import ProgrammeModule from '../models/ProgrammeModule';
 import ProgrammeLesson from '../models/ProgrammeLesson';
 import UserCourseProgress from '../models/UserCourseProgress';
-import Enrollment from '../models/Enrollment';
-import { Types } from 'mongoose';
-import { AuthRequest } from '../middleware/auth';
+import LessonCompletion from '../models/LessonCompletion';
 import QuizResult from '../models/QuizResult';
-import StudentProfile from '../models/StudentProfile';
+import { AuthRequest } from '../middleware/auth';
 
-export const getAllCourses = async (req: Request, res: Response) => {
-    try {
-        const { category, level, search } = req.query;
-        
-        let query: any = { isActive: true };
-        
-        if (category) query.category = category;
-        if (level) query.level = level;
-        if (search) {
-            query.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } },
-                { skills: { $in: [new RegExp(search as string, 'i')] } }
-            ];
-        }
-
-        const courses = await Programme.find(query).sort({ createdAt: -1 });
-        
-        const data = await Promise.all(courses.map(async (course) => {
-            const modulesCount = await ProgrammeModule.countDocuments({ 
-                programmeId: course._id, 
-                isActive: true 
-            });
-            const lessonsCount = await ProgrammeLesson.countDocuments({ 
-                programmeId: course._id, 
-                isActive: true 
-            });
-            
-            return {
-                id: course._id,
-                title: course.title,
-                description: course.description,
-                category: course.category,
-                level: course.level,
-                instructor: course.instructor,
-                duration: course.duration,
-                timeframe: course.timeframe,
-                skills: course.skills,
-                prerequisites: course.prerequisites,
-                imageUrl: course.imageUrl,
-                price: course.price,
-                currency: course.currency,
-                certificateAwarded: course.certificateAwarded,
-                modulesCount,
-                lessonsCount,
-                totalLessons: course.totalLessons,
-                totalModules: course.totalModules,
-                estimatedDuration: course.estimatedDuration
-            };
-        }));
-        
-        res.json({ success: true, data, total: data.length });
-    } catch (error) {
-        console.error('Error fetching courses:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch courses' });
-    }
-};
-
+/**
+ * Get all modules for a course with progress information
+ */
 export const getModulesForCourse = async (req: Request, res: Response) => {
     try {
         const { programmeId } = req.params;
@@ -81,7 +25,7 @@ export const getModulesForCourse = async (req: Request, res: Response) => {
             isActive: true 
         }).sort({ orderIndex: 1 }).populate('prerequisites');
 
-        let modulesWithProgress = modules;
+        let modulesWithProgress: any[] = modules;
 
         // If studentId is provided, include progress information
         if (studentId && Types.ObjectId.isValid(studentId as string)) {
@@ -89,14 +33,14 @@ export const getModulesForCourse = async (req: Request, res: Response) => {
                 modules.map(async (module) => {
                     // Get total lessons in module
                     const totalLessons = await ProgrammeLesson.countDocuments({
-                        moduleId: module._id,
+                        moduleId: module._id as Types.ObjectId,
                         isActive: true
                     });
 
                     // Get completed lessons for this student
                     const completedLessons = await UserCourseProgress.countDocuments({
                         studentId: new Types.ObjectId(studentId as string),
-                        moduleId: module._id,
+                        moduleId: module._id as Types.ObjectId,
                         status: 'COMPLETED'
                     });
 
@@ -112,20 +56,30 @@ export const getModulesForCourse = async (req: Request, res: Response) => {
                             progressPercentage: progress,
                             isCompleted: progress === 100,
                             isStarted: completedLessons > 0
-                        }
+                        },
+                        actualLessonsCount: totalLessons
                     };
                 })
             );
-            modulesWithProgress = progressData as any;
+            modulesWithProgress = progressData;
         }
 
-        res.json({ success: true, data: modulesWithProgress });
+        res.status(200).json({
+            success: true,
+            data: modulesWithProgress
+        });
     } catch (error) {
         console.error('Error fetching modules:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch modules' });
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch modules'
+        });
     }
 };
 
+/**
+ * Get all lessons for a module with progress information
+ */
 export const getLessonsForModule = async (req: Request, res: Response) => {
     try {
         const { moduleId } = req.params;
@@ -140,7 +94,7 @@ export const getLessonsForModule = async (req: Request, res: Response) => {
             isActive: true 
         }).sort({ orderIndex: 1 });
 
-        let lessonsWithProgress = lessons;
+        let lessonsWithProgress: any[] = lessons;
 
         // If studentId is provided, include progress information
         if (studentId && Types.ObjectId.isValid(studentId as string)) {
@@ -148,7 +102,7 @@ export const getLessonsForModule = async (req: Request, res: Response) => {
                 lessons.map(async (lesson) => {
                     const progress = await UserCourseProgress.findOne({
                         studentId: new Types.ObjectId(studentId as string),
-                        lessonId: lesson._id
+                        lessonId: lesson._id as Types.ObjectId
                     });
 
                     return {
@@ -162,29 +116,29 @@ export const getLessonsForModule = async (req: Request, res: Response) => {
                             bookmarked: progress.bookmarked,
                             notes: progress.notes,
                             attempts: progress.attempts
-                        } : {
-                            status: 'NOT_STARTED',
-                            progressPercentage: 0,
-                            timeSpent: 0,
-                            lastAccessedAt: null,
-                            completedAt: null,
-                            bookmarked: false,
-                            notes: '',
-                            attempts: 0
-                        }
+                        } : null
                     };
                 })
             );
-            lessonsWithProgress = progressData as any;
+            lessonsWithProgress = progressData;
         }
 
-        res.json({ success: true, data: lessonsWithProgress });
+        res.status(200).json({
+            success: true,
+            data: lessonsWithProgress
+        });
     } catch (error) {
         console.error('Error fetching lessons:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch lessons' });
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch lessons'
+        });
     }
 };
 
+/**
+ * Get detailed lesson information with navigation
+ */
 export const getLessonDetails = async (req: Request, res: Response) => {
     try {
         const { lessonId } = req.params;
@@ -239,148 +193,63 @@ export const getLessonDetails = async (req: Request, res: Response) => {
         const previousLesson = currentIndex > 0 ? siblingLessons[currentIndex - 1] : null;
         const nextLesson = currentIndex < siblingLessons.length - 1 ? siblingLessons[currentIndex + 1] : null;
 
-        res.json({
+        const lessonData = {
+            lesson: {
+                id: (lesson._id as Types.ObjectId).toString(),
+                title: lesson.title,
+                description: lesson.description,
+                type: lesson.type,
+                estimatedDuration: lesson.estimatedDuration,
+                content: lesson.content,
+                learningObjectives: lesson.learningObjectives,
+                resources: lesson.resources,
+                isRequired: lesson.isRequired,
+                orderIndex: lesson.orderIndex,
+                module: lesson.moduleId,
+                programme: lesson.programmeId
+            },
+            navigation: {
+                previousLesson: previousLesson ? {
+                    _id: (previousLesson._id as Types.ObjectId).toString(),
+                    title: previousLesson.title,
+                    orderIndex: previousLesson.orderIndex
+                } : null,
+                nextLesson: nextLesson ? {
+                    _id: (nextLesson._id as Types.ObjectId).toString(),
+                    title: nextLesson.title,
+                    orderIndex: nextLesson.orderIndex
+                } : null,
+                currentPosition: currentIndex + 1,
+                totalLessons: siblingLessons.length
+            },
+            stats: {
+                averageCompletionTime: Math.round(stats.avgTime || 0),
+                totalCompletions: stats.totalCompletions || 0,
+                averageAttempts: Math.round(stats.avgAttempts || 0)
+            },
+            studentProgress: studentProgress ? {
+                status: studentProgress.status,
+                progressPercentage: studentProgress.progressPercentage,
+                timeSpent: studentProgress.timeSpent,
+                lastAccessedAt: studentProgress.lastAccessedAt,
+                completedAt: studentProgress.completedAt,
+                bookmarked: studentProgress.bookmarked,
+                notes: studentProgress.notes,
+                attempts: studentProgress.attempts,
+                watchTimeVideo: studentProgress.watchTimeVideo
+            } : null
+        };
+
+        res.status(200).json({
             success: true,
-            data: {
-                lesson: {
-                    id: lesson._id,
-                    title: lesson.title,
-                    description: lesson.description,
-                    type: lesson.type,
-                    estimatedDuration: lesson.estimatedDuration,
-                    content: lesson.content,
-                    learningObjectives: lesson.learningObjectives,
-                    resources: lesson.resources,
-                    isRequired: lesson.isRequired,
-                    orderIndex: lesson.orderIndex,
-                    module: lesson.moduleId,
-                    programme: lesson.programmeId
-                },
-                navigation: {
-                    previousLesson,
-                    nextLesson,
-                    currentPosition: currentIndex + 1,
-                    totalLessons: siblingLessons.length
-                },
-                stats: {
-                    averageCompletionTime: Math.round(stats.avgTime || 0),
-                    totalCompletions: stats.totalCompletions,
-                    averageAttempts: Math.round((stats.avgAttempts || 0) * 100) / 100
-                },
-                studentProgress: studentProgress ? {
-                    status: studentProgress.status,
-                    progressPercentage: studentProgress.progressPercentage,
-                    timeSpent: studentProgress.timeSpent,
-                    lastAccessedAt: studentProgress.lastAccessedAt,
-                    completedAt: studentProgress.completedAt,
-                    bookmarked: studentProgress.bookmarked,
-                    notes: studentProgress.notes,
-                    attempts: studentProgress.attempts,
-                    watchTimeVideo: studentProgress.watchTimeVideo
-                } : null
-            }
+            data: lessonData
         });
     } catch (error) {
         console.error('Error fetching lesson details:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch lesson details' });
-    }
-};
-
-export const getCourseDetails = async (req: Request, res: Response) => {
-    try {
-        const { programmeId } = req.params;
-        
-        if (!Types.ObjectId.isValid(programmeId)) {
-            return res.status(400).json({ success: false, message: 'Invalid programmeId' });
-        }
-
-        const course = await Programme.findById(programmeId);
-        if (!course) {
-            return res.status(404).json({ success: false, message: 'Course not found' });
-        }
-
-        // Get modules with lesson counts
-        const modules = await ProgrammeModule.aggregate([
-            { $match: { programmeId: new Types.ObjectId(programmeId), isActive: true } },
-            { $sort: { orderIndex: 1 } },
-            {
-                $lookup: {
-                    from: 'programmelessons',
-                    localField: '_id',
-                    foreignField: 'moduleId',
-                    as: 'lessons'
-                }
-            },
-            {
-                $project: {
-                    title: 1,
-                    description: 1,
-                    orderIndex: 1,
-                    estimatedDuration: 1,
-                    totalLessons: 1,
-                    prerequisites: 1,
-                    dueDate: 1,
-                    learningObjectives: 1,
-                    actualLessonsCount: { $size: '$lessons' }
-                }
-            }
-        ]);
-
-        // Get enrollment stats
-        const enrollmentStats = await Enrollment.aggregate([
-            { $match: { programmeId: new Types.ObjectId(programmeId) } },
-            {
-                $group: {
-                    _id: null,
-                    totalEnrollments: { $sum: 1 },
-                    activeEnrollments: {
-                        $sum: { $cond: [{ $eq: ['$status', 'ACTIVE'] }, 1, 0] }
-                    },
-                    completedEnrollments: {
-                        $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
-                    }
-                }
-            }
-        ]);
-
-        const stats = enrollmentStats[0] || {
-            totalEnrollments: 0,
-            activeEnrollments: 0,
-            completedEnrollments: 0
-        };
-
-        res.json({
-            success: true,
-            data: {
-                course: {
-                    id: course._id,
-                    title: course.title,
-                    description: course.description,
-                    overview: course.overview,
-                    category: course.category,
-                    level: course.level,
-                    instructor: course.instructor,
-                    duration: course.duration,
-                    timeframe: course.timeframe,
-                    skills: course.skills,
-                    prerequisites: course.prerequisites,
-                    imageUrl: course.imageUrl,
-                    price: course.price,
-                    currency: course.currency,
-                    certificateAwarded: course.certificateAwarded,
-                    totalModules: course.totalModules,
-                    totalLessons: course.totalLessons,
-                    estimatedDuration: course.estimatedDuration,
-                    createdAt: course.createdAt,
-                    updatedAt: course.updatedAt
-                },
-                modules,
-                stats
-            }
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch lesson details'
         });
-    } catch (error) {
-        console.error('Error fetching course details:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch course details' });
     }
 };
 
@@ -429,7 +298,7 @@ export const getLessonContent = async (req: Request, res: Response) => {
     let quiz = null;
     if (lesson.content?.quiz) {
       quiz = {
-        id: lesson._id.toString(),
+        id: (lesson._id as Types.ObjectId).toString(),
         title: lesson.title,
         description: lesson.description,
         timeLimit: lesson.content.quiz.timeLimit,
@@ -452,7 +321,9 @@ export const getLessonContent = async (req: Request, res: Response) => {
         completed: lessonProgress.completedAt,
         timeSpent: lessonProgress.timeSpent,
         lastAccessed: lessonProgress.lastAccessedAt,
-        progressPercentage: lessonProgress.progressPercentage
+        progressPercentage: lessonProgress.progressPercentage,
+        bookmarked: lessonProgress.bookmarked,
+        notes: lessonProgress.notes
       } : null,
       quiz
     };
@@ -471,139 +342,186 @@ export const getLessonContent = async (req: Request, res: Response) => {
 };
 
 /**
- * Submit quiz answers and get results
+ * Update lesson progress
  */
-export const submitQuiz = async (req: Request, res: Response) => {
+export const updateLessonProgress = async (req: AuthRequest, res: Response) => {
+  try {
+    const { lessonId } = req.params;
+    const { studentId, timeSpent, progressPercentage, notes, bookmarked } = req.body;
+
+    if (!Types.ObjectId.isValid(lessonId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid lesson ID'
+      });
+    }
+
+    // Get or create progress record
+    let progress = await UserCourseProgress.findOne({
+      studentId,
+      lessonId
+    });
+
+    if (!progress) {
+      const lessonDoc = await ProgrammeLesson.findById(lessonId).select('programmeId moduleId');
+      if (!lessonDoc) {
+        return res.status(404).json({
+          success: false,
+          message: 'Lesson not found'
+        });
+      }
+      
+      progress = new UserCourseProgress({
+        studentId,
+        lessonId,
+        programmeId: lessonDoc.programmeId,
+        moduleId: lessonDoc.moduleId,
+        status: 'IN_PROGRESS'
+      });
+    }
+
+    // Update progress
+    progress.timeSpent = timeSpent || progress.timeSpent;
+    progress.progressPercentage = Math.min(progressPercentage || 0, 100);
+    progress.lastAccessedAt = new Date();
+    progress.notes = notes !== undefined ? notes : progress.notes;
+    progress.bookmarked = bookmarked !== undefined ? bookmarked : progress.bookmarked;
+
+    // Mark as completed if progress is 100%
+    if (progress.progressPercentage >= 100 && progress.status !== 'COMPLETED') {
+      progress.status = 'COMPLETED';
+      progress.completedAt = new Date();
+    }
+
+    await progress.save();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        progressPercentage: progress.progressPercentage,
+        timeSpent: progress.timeSpent,
+        status: progress.status,
+        completed: progress.status === 'COMPLETED'
+      }
+    });
+  } catch (error) {
+    console.error('Error updating lesson progress:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update lesson progress'
+    });
+  }
+};
+
+/**
+ * Submit quiz answers
+ */
+export const submitQuiz = async (req: AuthRequest, res: Response) => {
   try {
     const { lessonId } = req.params;
     const { studentId, answers, timeSpent } = req.body;
 
-    if (!Types.ObjectId.isValid(lessonId) || !Types.ObjectId.isValid(studentId)) {
+    if (!Types.ObjectId.isValid(lessonId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid lesson ID or student ID'
+        message: 'Invalid lesson ID'
       });
     }
 
-    // Get lesson with quiz
-          const lesson = await ProgrammeLesson.findById(lessonId)
-        .populate('moduleId')
-        .populate('programmeId')
-        .lean();
-
+    // Get lesson and quiz
+    const lesson = await ProgrammeLesson.findById(lessonId);
     if (!lesson || !lesson.content?.quiz) {
       return res.status(404).json({
         success: false,
-        message: 'Lesson or quiz not found'
+        message: 'Quiz not found'
       });
     }
 
-    // Calculate score
+    const quiz = lesson.content.quiz;
     let totalScore = 0;
     let maxScore = 0;
     const results = [];
 
-    for (const question of lesson.content.quiz.questions) {
-      maxScore += question.points || 1;
-      const studentAnswer = answers.find((a: any) => a.questionId === question.id.toString());
-      
-      let isCorrect = false;
-      let earnedPoints = 0;
-
-      if (studentAnswer) {
-        switch (question.type) {
-          case 'MULTIPLE_CHOICE':
-            isCorrect = studentAnswer.answer === question.correctAnswer;
-            break;
-          case 'TRUE_FALSE':
-            isCorrect = studentAnswer.answer === question.correctAnswer;
-            break;
-          case 'SHORT_ANSWER':
-            // Simple text matching (could be enhanced with fuzzy matching)
-            isCorrect = studentAnswer.answer.toLowerCase().trim() === 
-                       question.correctAnswer.toLowerCase().trim();
-            break;
+    // Grade each answer
+    for (const answer of answers) {
+      const question = quiz.questions.find(q => q.id === answer.questionId);
+      if (question) {
+        maxScore += question.points;
+        const isCorrect = answer.answer === question.correctAnswer;
+        if (isCorrect) {
+          totalScore += question.points;
         }
-
-        earnedPoints = isCorrect ? (question.points || 1) : 0;
-        totalScore += earnedPoints;
+        results.push({
+          question: question.question,
+          studentAnswer: answer.answer,
+          correctAnswer: question.correctAnswer,
+          isCorrect,
+          points: isCorrect ? question.points : 0
+        });
       }
-
-      results.push({
-        questionId: question.id,
-        question: question.question,
-        studentAnswer: studentAnswer?.answer || null,
-        correctAnswer: question.correctAnswer,
-        isCorrect,
-        earnedPoints,
-        maxPoints: question.points || 1
-      });
     }
 
-    const percentage = Math.round((totalScore / maxScore) * 100);
-    const passed = percentage >= (lesson.content.quiz.passingScore || 70);
+    const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+    const passed = percentage >= quiz.passingScore;
+    const pointsEarned = passed ? Math.round(percentage) : 0;
 
     // Save quiz result
     const quizResult = new QuizResult({
       studentId,
       lessonId,
       programmeId: lesson.programmeId,
-      moduleId: lesson.moduleId,
-      quizId: lesson._id.toString(),
+      answers: answers,
       score: totalScore,
-      maxScore,
-      percentage,
-      isPassed: passed,
-      timeSpent,
-      answers: results,
-      completedAt: new Date(),
+      maxScore: maxScore,
+      percentage: percentage,
+      passed: passed,
+      timeSpent: timeSpent || 0,
       submittedAt: new Date()
     });
 
     await quizResult.save();
 
     // Update lesson progress
-    const existingProgress = await UserCourseProgress.findOne({ studentId, lessonId });
-    await UserCourseProgress.findOneAndUpdate(
-      { studentId, lessonId },
-      {
-        $set: {
-          completed: true,
-          completedAt: new Date(),
-          progressPercentage: 100,
-          timeSpent: (timeSpent || 0) + (existingProgress?.timeSpent || 0)
-        }
-      },
-      { upsert: true }
-    );
+    let progress = await UserCourseProgress.findOne({
+      studentId,
+      lessonId
+    });
 
-    // Award points for quiz completion
-    const pointsEarned = passed ? 50 : 10; // More points for passing
-    await StudentProfile.findOneAndUpdate(
-      { userId: studentId },
-      {
-        $inc: { 'gamification.totalPoints': pointsEarned },
-        $set: { 'statistics.lastActiveDate': new Date() }
-      }
-    );
+    if (!progress) {
+      progress = new UserCourseProgress({
+        studentId,
+        lessonId,
+        programmeId: lesson.programmeId,
+        moduleId: lesson.moduleId,
+        status: passed ? 'COMPLETED' : 'IN_PROGRESS'
+      });
+    }
+
+    progress.progressPercentage = passed ? 100 : Math.max(progress.progressPercentage, 50);
+    progress.timeSpent = (progress.timeSpent || 0) + (timeSpent || 0);
+    progress.lastAccessedAt = new Date();
+
+    if (passed && progress.status !== 'COMPLETED') {
+      progress.status = 'COMPLETED';
+      progress.completedAt = new Date();
+    }
+
+    await progress.save();
 
     res.status(200).json({
       success: true,
       data: {
         quizResult: {
-          id: quizResult._id,
           score: totalScore,
-          maxScore,
-          percentage,
-          passed,
-          timeSpent,
-          submittedAt: quizResult.submittedAt,
-          pointsEarned
+          maxScore: maxScore,
+          percentage: percentage,
+          passed: passed,
+          pointsEarned: pointsEarned
         },
-        results,
-        feedback: passed ? 
-          'Congratulations! You passed the quiz.' : 
-          'Keep studying! Review the material and try again.'
+        results: results,
+        feedback: passed 
+          ? `Congratulations! You passed the quiz with ${percentage.toFixed(1)}%` 
+          : `You scored ${percentage.toFixed(1)}%. You need ${quiz.passingScore}% to pass.`
       }
     });
   } catch (error) {
@@ -616,103 +534,110 @@ export const submitQuiz = async (req: Request, res: Response) => {
 };
 
 /**
- * Get next recommended module for a student
+ * Get next module recommendation
  */
 export const getNextModule = async (req: Request, res: Response) => {
   try {
     const { programmeId } = req.params;
     const { studentId } = req.query;
 
-    if (!Types.ObjectId.isValid(programmeId) || !Types.ObjectId.isValid(studentId as string)) {
+    if (!Types.ObjectId.isValid(programmeId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid programme ID or student ID'
+        message: 'Invalid programme ID'
       });
     }
 
-    // Get student's progress in this programme
-    const enrollment = await Enrollment.findOne({
-      studentId,
-      programmeId
-    }).populate('programmeId');
+    // Get all modules for the programme
+    const modules = await ProgrammeModule.find({
+      programmeId,
+      isActive: true
+    }).sort({ orderIndex: 1 });
 
-    if (!enrollment) {
+    if (modules.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Enrollment not found'
+        message: 'No modules found'
       });
     }
 
-    // Get all modules for this programme
-    const modules = await ProgrammeModule.find({ programmeId })
-      .sort({ orderIndex: 1 })
-      .lean();
-
-    // Find the next incomplete module
     let nextModule = null;
-    for (const module of modules) {
-      const moduleProgress = await UserCourseProgress.findOne({
-        studentId,
-        moduleId: module._id,
-        status: { $ne: 'COMPLETED' }
-      });
-
-      if (moduleProgress || !nextModule) {
-        nextModule = module;
-        break;
-      }
-    }
-
-    if (!nextModule) {
-      // All modules completed
-      return res.status(200).json({
-        success: true,
-        data: {
-          nextModule: null,
-          message: 'All modules completed!',
-          programmeCompleted: true
-        }
-      });
-    }
-
-    // Get first incomplete lesson in the next module
-    const lessons = await ProgrammeLesson.find({ moduleId: nextModule._id })
-      .sort({ orderIndex: 1 })
-      .lean();
-
     let nextLesson = null;
-    for (const lesson of lessons) {
-      const lessonProgress = await UserCourseProgress.findOne({
-        studentId,
-        lessonId: lesson._id,
-        status: { $ne: 'COMPLETED' }
-      });
 
-      if (lessonProgress || !nextLesson) {
-        nextLesson = lesson;
-        break;
+    if (studentId && Types.ObjectId.isValid(studentId as string)) {
+      // Find the next incomplete module
+      for (const module of modules) {
+        const moduleProgress = await UserCourseProgress.aggregate([
+          {
+            $match: {
+              studentId: new Types.ObjectId(studentId as string),
+              moduleId: module._id as Types.ObjectId
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalLessons: { $sum: 1 },
+              completedLessons: {
+                $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
+              }
+            }
+          }
+        ]);
+
+        const progress = moduleProgress[0] || { totalLessons: 0, completedLessons: 0 };
+        
+        if (progress.completedLessons < progress.totalLessons) {
+          nextModule = module;
+          
+          // Find the next incomplete lesson in this module
+          const lessons = await ProgrammeLesson.find({
+            moduleId: module._id as Types.ObjectId,
+            isActive: true
+          }).sort({ orderIndex: 1 });
+
+          for (const lesson of lessons) {
+            const lessonProgress = await UserCourseProgress.findOne({
+              studentId: new Types.ObjectId(studentId as string),
+              lessonId: lesson._id as Types.ObjectId
+            });
+
+            if (!lessonProgress || lessonProgress.status !== 'COMPLETED') {
+              nextLesson = lesson;
+              break;
+            }
+          }
+          break;
+        }
       }
+    }
+
+    // If no next module found, default to first module
+    if (!nextModule) {
+      nextModule = modules[0];
+      const firstLesson = await ProgrammeLesson.findOne({
+        moduleId: modules[0]._id as Types.ObjectId,
+        isActive: true
+      }).sort({ orderIndex: 1 });
+      nextLesson = firstLesson;
     }
 
     res.status(200).json({
       success: true,
       data: {
-        nextModule: {
-          id: nextModule._id,
+        nextModule: nextModule ? {
+          id: (nextModule._id as Types.ObjectId).toString(),
           title: nextModule.title,
           description: nextModule.description,
-          orderIndex: nextModule.orderIndex,
-          estimatedDuration: nextModule.estimatedDuration
-        },
+          orderIndex: nextModule.orderIndex
+        } : null,
         nextLesson: nextLesson ? {
-          id: nextLesson._id,
+          id: (nextLesson._id as Types.ObjectId).toString(),
           title: nextLesson.title,
           description: nextLesson.description,
           type: nextLesson.type,
-          duration: nextLesson.estimatedDuration,
           orderIndex: nextLesson.orderIndex
-        } : null,
-        programmeCompleted: false
+        } : null
       }
     });
   } catch (error) {
@@ -724,19 +649,159 @@ export const getNextModule = async (req: Request, res: Response) => {
   }
 };
 
-export const getCourseMapping = async (req: Request, res: Response) => {
-    try {
-        const courses = await Programme.find({ isActive: true }).select('_id title slug');
-        
-        const mapping: Record<string, string> = {};
-        courses.forEach((course: any) => {
-            const slug = course.slug || course.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            mapping[slug] = course._id.toString();
-        });
-        
-        res.json({ success: true, data: mapping });
-    } catch (error) {
-        console.error('Error fetching course mapping:', error);
-        res.status(500).json({ success: false, message: 'Failed to fetch course mapping' });
+/**
+ * Get course progress overview
+ */
+export const getCourseProgress = async (req: Request, res: Response) => {
+  try {
+    const { programmeId } = req.params;
+    const { studentId } = req.query;
+
+    if (!Types.ObjectId.isValid(programmeId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid programme ID'
+      });
     }
+
+    // Get programme details
+    const programme = await Programme.findById(programmeId);
+    if (!programme) {
+      return res.status(404).json({
+        success: false,
+        message: 'Programme not found'
+      });
+    }
+
+    // Get all modules and lessons
+    const modules = await ProgrammeModule.find({
+      programmeId,
+      isActive: true
+    }).sort({ orderIndex: 1 });
+
+    let overallProgress = 0;
+    let modulesCompleted = 0;
+    let lessonsCompleted = 0;
+    let totalTimeSpent = 0;
+    let lastAccessedAt = null;
+
+    if (studentId && Types.ObjectId.isValid(studentId as string)) {
+      // Calculate progress for each module
+      const moduleProgress = await Promise.all(
+        modules.map(async (module) => {
+          const lessons = await ProgrammeLesson.find({
+            moduleId: module._id as Types.ObjectId,
+            isActive: true
+          }).sort({ orderIndex: 1 });
+
+          const lessonProgress = await Promise.all(
+            lessons.map(async (lesson) => {
+              const progress = await UserCourseProgress.findOne({
+                studentId: new Types.ObjectId(studentId as string),
+                lessonId: lesson._id as Types.ObjectId
+              });
+
+              if (progress) {
+                totalTimeSpent += progress.timeSpent || 0;
+                if (progress.lastAccessedAt) {
+                  lastAccessedAt = progress.lastAccessedAt;
+                }
+              }
+
+              return {
+                id: (lesson._id as Types.ObjectId).toString(),
+                title: lesson.title,
+                description: lesson.description,
+                type: lesson.type,
+                duration: lesson.estimatedDuration,
+                orderIndex: lesson.orderIndex,
+                status: progress?.status || 'NOT_STARTED',
+                progressPercentage: progress?.progressPercentage || 0,
+                timeSpent: progress?.timeSpent || 0
+              };
+            })
+          );
+
+          const completedLessons = lessonProgress.filter(l => l.status === 'COMPLETED').length;
+          const moduleProgressPercentage = lessons.length > 0 ? (completedLessons / lessons.length) * 100 : 0;
+
+          if (moduleProgressPercentage === 100) {
+            modulesCompleted++;
+          }
+
+          return {
+            id: (module._id as Types.ObjectId).toString(),
+            title: module.title,
+            description: module.description,
+            orderIndex: module.orderIndex,
+            estimatedDuration: module.estimatedDuration,
+            lessons: lessonProgress,
+            progress: {
+              completedLessons,
+              totalLessons: lessons.length,
+              percentage: moduleProgressPercentage
+            }
+          };
+        })
+      );
+
+      // Calculate overall progress
+      const totalLessons = moduleProgress.reduce((sum, module) => sum + module.progress.totalLessons, 0);
+      lessonsCompleted = moduleProgress.reduce((sum, module) => sum + module.progress.completedLessons, 0);
+      overallProgress = totalLessons > 0 ? (lessonsCompleted / totalLessons) * 100 : 0;
+
+      res.status(200).json({
+        success: true,
+        data: {
+          programmeId: (programme._id as Types.ObjectId).toString(),
+          programmeTitle: programme.title,
+          overallProgress: Math.round(overallProgress * 100) / 100,
+          modulesCompleted,
+          totalModules: modules.length,
+          lessonsCompleted,
+          totalLessons,
+          timeSpent: totalTimeSpent,
+          lastAccessedAt,
+          enrollmentDate: new Date(), // This should come from enrollment
+          modules: moduleProgress
+        }
+      });
+    } else {
+      // Return basic course structure without progress
+      res.status(200).json({
+        success: true,
+        data: {
+          programmeId: (programme._id as Types.ObjectId).toString(),
+          programmeTitle: programme.title,
+          overallProgress: 0,
+          modulesCompleted: 0,
+          totalModules: modules.length,
+          lessonsCompleted: 0,
+          totalLessons: 0,
+          timeSpent: 0,
+          lastAccessedAt: null,
+          enrollmentDate: new Date(),
+          modules: modules.map(module => ({
+            id: (module._id as Types.ObjectId).toString(),
+            title: module.title,
+            description: module.description,
+            orderIndex: module.orderIndex,
+            estimatedDuration: module.estimatedDuration,
+            lessons: [],
+            progress: {
+              completedLessons: 0,
+              totalLessons: 0,
+              percentage: 0
+            }
+          }))
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error getting course progress:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get course progress'
+    });
+  }
 };

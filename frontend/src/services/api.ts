@@ -832,7 +832,7 @@ export const courseContentAPI = {
   
   // Get next module
   getNextModule: (programmeId: string, studentId?: string) =>
-    api.get<ApiResponse<any>>(`/courses/${programmeId}/next-module`, {
+    api.get<ApiResponse<any>>(`/courses/next-module/${programmeId}`, {
       params: { studentId }
     }).then(res => res.data),
   

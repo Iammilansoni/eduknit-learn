@@ -141,7 +141,7 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="averageProgress" radius={[4, 4, 0, 0]}>
                 {categoryPerformance.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={getCategoryColor(index)} />
+                  <Cell key={`cell-${entry.category}-${index}`} fill={getCategoryColor(index)} />
                 ))}
               </Bar>
             </BarChart>
@@ -154,7 +154,7 @@ const CategoryPerformanceChart: React.FC<CategoryPerformanceChartProps> = ({
           {categoryPerformance.map((category, index) => {
             const performance = getPerformanceLabel(category.averageProgress);
             return (
-              <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div key={`category-${category.category}-${index}`} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div 
                     className="w-3 h-3 rounded-full" 

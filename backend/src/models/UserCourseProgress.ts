@@ -1,4 +1,4 @@
-import { Schema, model, Document, Model } from 'mongoose';
+import { Schema, model, Document, Model, Types } from 'mongoose';
 
 /**
  * Interface representing a User Course Progress document in MongoDB.
@@ -223,8 +223,8 @@ UserCourseProgressSchema.statics.getProgressSummary = function(studentId: string
     return this.aggregate([
         { 
             $match: { 
-                studentId: new Schema.Types.ObjectId(studentId),
-                programmeId: new Schema.Types.ObjectId(programmeId)
+                studentId: new Types.ObjectId(studentId),
+                programmeId: new Types.ObjectId(programmeId)
             }
         },
         {
@@ -263,8 +263,8 @@ UserCourseProgressSchema.statics.calculateCourseProgress = function(studentId: s
     return this.aggregate([
         { 
             $match: { 
-                studentId: new Schema.Types.ObjectId(studentId),
-                programmeId: new Schema.Types.ObjectId(programmeId),
+                studentId: new Types.ObjectId(studentId),
+                programmeId: new Types.ObjectId(programmeId),
                 isRequired: true
             }
         },

@@ -8,7 +8,7 @@ import { BookOpen, Video } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface Course {
-  id: number;
+  id: string | number;
   title: string;
   progress: number;
   instructor: string;
@@ -23,7 +23,7 @@ interface Course {
 
 interface CourseListProps {
   courses: Course[];
-  onContinueLearning?: (courseId: number) => void;
+  onContinueLearning?: (courseId: string | number) => void;
 }
 
 const renderStatusBadge = (status: string) => {
@@ -61,8 +61,8 @@ const CourseList: React.FC<CourseListProps> = ({ courses, onContinueLearning }) 
   
   return (
     <div className="grid grid-cols-1 gap-6">
-      {courses.map(course => (
-        <Card key={course.id} className="overflow-hidden transition-all duration-300 hover:shadow-md">
+      {courses.map((course, index) => (
+        <Card key={course.id || `course-${index}`} className="overflow-hidden transition-all duration-300 hover:shadow-md">
           <div className="flex flex-col md:flex-row">
             <div className="md:w-1/3 h-48 md:h-auto bg-gray-200 dark:bg-gray-700 relative">
               <img src={course.image} alt={course.title} className="w-full h-full object-cover" />

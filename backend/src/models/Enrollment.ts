@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 /**
  * Interface representing a Student Enrollment document in MongoDB.
@@ -259,7 +259,7 @@ EnrollmentSchema.statics.findActiveForStudent = function(studentId: string) {
 // Static method to get enrollment statistics
 EnrollmentSchema.statics.getStudentStats = function(studentId: string) {
     return this.aggregate([
-        { $match: { studentId: new Schema.Types.ObjectId(studentId) } },
+        { $match: { studentId: new Types.ObjectId(studentId) } },
         {
             $group: {
                 _id: null,

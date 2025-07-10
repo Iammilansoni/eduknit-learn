@@ -87,7 +87,7 @@ const StreakCounter: React.FC<StreakCounterProps> = ({
           <div className="flex items-center justify-center space-x-1">
             {Array.from({ length: Math.min(currentStreak, 7) }).map((_, index) => (
               <div
-                key={index}
+                key={`streak-active-${index}`}
                 className="w-6 h-6 rounded-sm bg-orange-500 text-white flex items-center justify-center text-xs"
               >
                 🔥

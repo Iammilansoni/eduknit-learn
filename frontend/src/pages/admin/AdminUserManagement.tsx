@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContextUtils';
 import { userAPI, User } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 import Layout from '@/components/layout/Layout';
+import AdminNavigation from '@/components/admin/AdminNavigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -309,6 +310,7 @@ const AdminUserManagement = () => {
 
   return (
     <Layout>
+      <AdminNavigation />
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

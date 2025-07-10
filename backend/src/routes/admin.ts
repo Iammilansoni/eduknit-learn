@@ -10,7 +10,18 @@ import {
   toggleCourseStatus,
   getCourseStats,
   getOverallCourseStats,
-  getEnrollmentStats
+  getEnrollmentStats,
+  getDashboardStats,
+  createModule,
+  getModulesByProgramme,
+  getModuleById,
+  updateModule,
+  deleteModule,
+  createLesson,
+  getLessonsByModule,
+  getLessonById,
+  updateLesson,
+  deleteLesson
 } from '../controllers/adminController';
 import { body, param, query } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation';
@@ -20,6 +31,13 @@ const router = express.Router();
 // Apply authentication and admin authorization to all routes
 router.use(authenticateJWT);
 router.use(authorizeRoles('admin'));
+
+/**
+ * @route   GET /api/admin/dashboard/stats
+ * @desc    Get comprehensive dashboard statistics
+ * @access  Admin only
+ */
+router.get('/dashboard/stats', getDashboardStats);
 
 /**
  * @route   POST /api/admin/courses
@@ -137,6 +155,24 @@ router.get('/courses/:id/stats', [
   param('id').isMongoId().withMessage('Invalid course ID'),
   handleValidationErrors
 ], getCourseStats);
+
+/**
+ * MODULE CRUD (Admin)
+ */
+router.post('/modules', createModule);
+router.get('/modules', getModulesByProgramme); // ?programmeId=...
+router.get('/modules/:id', getModuleById);
+router.put('/modules/:id', updateModule);
+router.delete('/modules/:id', deleteModule);
+
+/**
+ * LESSON CRUD (Admin)
+ */
+router.post('/lessons', createLesson);
+router.get('/lessons', getLessonsByModule); // ?moduleId=...
+router.get('/lessons/:id', getLessonById);
+router.put('/lessons/:id', updateLesson);
+router.delete('/lessons/:id', deleteLesson);
 
 /**
  * @route   GET /api/admin/enrollments/stats

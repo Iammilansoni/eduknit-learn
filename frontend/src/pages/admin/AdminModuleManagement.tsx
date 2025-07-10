@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -87,9 +87,12 @@ const AdminModuleManagement = () => {
   }));
   const [filters, setFilters] = useState({
     search: '',
-    courseId: 'all',
+    courseId: 'all', // Start with 'all' to show modules from all courses
     status: 'all'
   });
+
+  // Use ref to track if we're in the middle of a fetch to prevent infinite loops
+  const isFetchingRef = useRef(false);
 
   const navigate = useNavigate();
   const { courseId } = useParams<{ courseId?: string }>();
@@ -114,20 +117,30 @@ const AdminModuleManagement = () => {
     }
   });
 
-  // Fetch modules
-  const fetchModules = useCallback(async () => {
+  // Fetch modules with proper dependency management
+  const fetchModules = useCallback(async (specificPage?: number, specificLimit?: number) => {
+    if (isFetchingRef.current) return; // Prevent concurrent fetches
+    
     try {
+      isFetchingRef.current = true;
       setLoading(true);
-      const paramsObj: any = {
-        page: pagination?.page || 1,
-        limit: pagination?.limit || 10,
+      
+      const paramsObj: Record<string, string | number> = {
+        page: specificPage || pagination.page,
+        limit: specificLimit || pagination.limit,
       };
       if (filters.search) paramsObj.search = filters.search;
       if (filters.courseId && filters.courseId !== 'all') paramsObj.programmeId = filters.courseId;
       if (filters.status && filters.status !== 'all') paramsObj.status = filters.status;
       if (courseId) paramsObj.programmeId = courseId;
       
-      const params = new URLSearchParams(paramsObj);
+      // Convert all values to strings for URLSearchParams
+      const stringParams: Record<string, string> = {};
+      Object.entries(paramsObj).forEach(([key, value]) => {
+        stringParams[key] = String(value);
+      });
+      
+      const params = new URLSearchParams(stringParams);
       const response = await fetch(`/api/admin/modules?${params}`, {
         credentials: 'include'
       });
@@ -146,8 +159,9 @@ const AdminModuleManagement = () => {
       });
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [pagination?.page, pagination?.limit, filters.search, filters.courseId, filters.status, courseId, toast]);
+  }, [filters.search, filters.courseId, filters.status, courseId, toast, pagination.page, pagination.limit]);
 
   // Fetch courses for filter
   const fetchCourses = useCallback(async () => {
@@ -158,23 +172,30 @@ const AdminModuleManagement = () => {
       if (response.ok) {
         const data = await response.json();
         setCourses(data.data.courses);
-        // Set default course filter if not set
-        if (data.data.courses.length > 0 && (filters.courseId === 'all' || !filters.courseId)) {
-          setFilters(f => ({ ...f, courseId: data.data.courses[0].id }));
-        }
+      } else {
+        console.error('Failed to fetch courses:', response.status, response.statusText);
+        const errorData = await response.json();
+        console.error('Error details:', errorData);
       }
     } catch (error) {
       console.error('Error fetching courses:', error);
     }
-  }, [filters.courseId]);
+  }, []);
 
+  // Load courses once on mount
   useEffect(() => {
     fetchCourses();
-    // Only call fetchModules if a course is selected
-    if ((filters.courseId && filters.courseId !== 'all') || courseId) {
+  }, [fetchCourses]);
+
+  // Load modules and handle pagination/filter changes
+  useEffect(() => {
+    // Use a small delay to debounce rapid changes
+    const timeoutId = setTimeout(() => {
       fetchModules();
-    }
-  }, [pagination?.page, filters, courseId, fetchCourses, fetchModules]);
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [fetchModules]);
 
   // Create/Update module
   const onSubmit = async (data: ModuleFormData) => {
@@ -216,11 +237,11 @@ const AdminModuleManagement = () => {
       setEditingModule(null);
       reset();
       fetchModules();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving module:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save module",
+        description: error instanceof Error ? error.message : "Failed to save module",
         variant: "destructive"
       });
     }

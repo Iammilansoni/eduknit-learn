@@ -120,14 +120,40 @@ export interface LessonDetails {
   } | null;
 }
 
-export interface CourseDetails {
-  course: Course;
-  modules: Module[];
-  stats: {
-    totalEnrollments: number;
-    activeEnrollments: number;
-    completedEnrollments: number;
-  };
+export interface CourseProgressResponse {
+  programmeId: string;
+  programmeTitle: string;
+  overallProgress: number;
+  modulesCompleted: number;
+  totalModules: number;
+  lessonsCompleted: number;
+  totalLessons: number;
+  timeSpent: number;
+  lastAccessedAt: string;
+  enrollmentDate: string;
+  modules: Array<{
+    id: string;
+    title: string;
+    description: string;
+    orderIndex: number;
+    estimatedDuration: number;
+    lessons: Array<{
+      id: string;
+      title: string;
+      description: string;
+      type: string;
+      duration: number;
+      orderIndex: number;
+      status: string;
+      progressPercentage: number;
+      timeSpent: number;
+    }>;
+    progress: {
+      completedLessons: number;
+      totalLessons: number;
+      percentage: number;
+    };
+  }>;
 }
 
 export interface CourseFilters {
@@ -153,7 +179,7 @@ export const courseContentApi = {
   },
 
   // Get detailed course information
-  async getCourseDetails(programmeId: string): Promise<CourseDetails> {
+  async getCourseDetails(programmeId: string): Promise<Course> {
     try {
       const response = await api.get(`/courses/${programmeId}`);
       return response.data.data;
@@ -167,11 +193,11 @@ export const courseContentApi = {
   async getModulesForCourse(
     programmeId: string, 
     studentId?: string
-  ): Promise<{ data: Module[] }> {
+  ): Promise<Module[]> {
     try {
       const params = studentId ? { studentId } : {};
-      const response = await api.get(`/courses/${programmeId}/modules`, { params });
-      return response.data;
+      const response = await api.get(`/course-content/modules/${programmeId}`, { params });
+      return response.data.data;
     } catch (error) {
       console.error('Error fetching modules:', error);
       throw error;
@@ -182,11 +208,11 @@ export const courseContentApi = {
   async getLessonsForModule(
     moduleId: string, 
     studentId?: string
-  ): Promise<{ data: Lesson[] }> {
+  ): Promise<Lesson[]> {
     try {
       const params = studentId ? { studentId } : {};
-      const response = await api.get(`/modules/${moduleId}/lessons`, { params });
-      return response.data;
+      const response = await api.get(`/course-content/lessons/${moduleId}`, { params });
+      return response.data.data;
     } catch (error) {
       console.error('Error fetching lessons:', error);
       throw error;
@@ -200,10 +226,96 @@ export const courseContentApi = {
   ): Promise<LessonDetails> {
     try {
       const params = studentId ? { studentId } : {};
-      const response = await api.get(`/lessons/${lessonId}`, { params });
+      const response = await api.get(`/course-content/lesson/${lessonId}`, { params });
       return response.data.data;
     } catch (error) {
       console.error('Error fetching lesson details:', error);
+      throw error;
+    }
+  },
+
+  // Get lesson content
+  async getLessonContent(
+    lessonId: string, 
+    studentId?: string
+  ): Promise<any> {
+    try {
+      const params = studentId ? { studentId } : {};
+      const response = await api.get(`/course-content/lesson-content/${lessonId}`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching lesson content:', error);
+      throw error;
+    }
+  },
+
+  // Update lesson progress
+  async updateLessonProgress(
+    lessonId: string,
+    data: {
+      studentId: string;
+      timeSpent: number;
+      progressPercentage: number;
+      notes?: string;
+      bookmarked?: boolean;
+    }
+  ): Promise<any> {
+    try {
+      const response = await api.put(`/course-content/lesson-progress/${lessonId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating lesson progress:', error);
+      throw error;
+    }
+  },
+
+  // Submit quiz
+  async submitQuiz(
+    lessonId: string,
+    data: {
+      studentId: string;
+      answers: Array<{
+        questionId: string;
+        answer: string;
+      }>;
+      timeSpent: number;
+    }
+  ): Promise<any> {
+    try {
+      const response = await api.post(`/course-content/quiz/${lessonId}`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
+      throw error;
+    }
+  },
+
+  // Get next module recommendation
+  async getNextModule(
+    programmeId: string, 
+    studentId?: string
+  ): Promise<any> {
+    try {
+      const params = studentId ? { studentId } : {};
+      const response = await api.get(`/course-content/next-module/${programmeId}`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching next module:', error);
+      throw error;
+    }
+  },
+
+  // Get course progress
+  async getCourseProgress(
+    programmeId: string, 
+    studentId?: string
+  ): Promise<CourseProgressResponse> {
+    try {
+      const params = studentId ? { studentId } : {};
+      const response = await api.get(`/course-content/progress/${programmeId}`, { params });
+      return response.data.data;
+    } catch (error) {
+      console.error('Error fetching course progress:', error);
       throw error;
     }
   },

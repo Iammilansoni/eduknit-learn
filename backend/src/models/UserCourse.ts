@@ -1,4 +1,5 @@
 import { Schema, model, Document, Model } from 'mongoose';
+import { Types } from 'mongoose';
 
 /**
  * Interface representing a User Course Enrollment document in MongoDB.
@@ -247,7 +248,7 @@ UserCourseSchema.statics.findEnrolledForUser = function(userId: string) {
 // Static method to get user course statistics
 UserCourseSchema.statics.getUserStats = function(userId: string) {
     return this.aggregate([
-        { $match: { userId: new Schema.Types.ObjectId(userId) } },
+        { $match: { userId: new Types.ObjectId(userId) } },
         {
             $group: {
                 _id: null,

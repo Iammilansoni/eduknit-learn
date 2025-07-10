@@ -54,8 +54,16 @@ export class JWTUtils {
    * Generate access token
    */
   static generateAccessToken(payload: AccessTokenPayload): string {
+    // Create clean payload without any existing JWT properties
+    const cleanPayload = {
+      user: {
+        id: payload.user.id,
+        role: payload.user.role
+      }
+    };
+    
     return jwt.sign(
-      payload,
+      cleanPayload,
       JWT_CONFIG.ACCESS_TOKEN.SECRET,
       {
         expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN as any,
@@ -70,8 +78,16 @@ export class JWTUtils {
    * Generate refresh token
    */
   static generateRefreshToken(payload: RefreshTokenPayload): string {
+    // Create clean payload without any existing JWT properties
+    const cleanPayload = {
+      user: {
+        id: payload.user.id,
+        role: payload.user.role
+      }
+    };
+    
     return jwt.sign(
-      payload,
+      cleanPayload,
       JWT_CONFIG.REFRESH_TOKEN.SECRET,
       {
         expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN as any,

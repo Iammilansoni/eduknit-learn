@@ -330,7 +330,7 @@ export class ProgressService {
 
                 // Update enrollment progress if lesson not already completed
                 if (!enrollment.progress.completedLessons.some((l: any) => l.toString() === lessonId)) {
-                    enrollment.progress.completedLessons.push(new Schema.Types.ObjectId(lessonId));
+                    enrollment.progress.completedLessons.push(new Types.ObjectId(lessonId) as any);
                     enrollment.progress.timeSpent += timeSpent;
                     enrollment.progress.lastActivityDate = new Date();
 

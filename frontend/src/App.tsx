@@ -35,13 +35,18 @@ import DecisionMakingPage from "./pages/programs/DecisionMakingPage";
 // Dashboard Pages
 import AdminPage from "./pages/AdminPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
+import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminCourseManagement from './pages/admin/AdminCourseManagement';
+import AdminModuleManagement from './pages/admin/AdminModuleManagement';
+import AdminLessonManagement from './pages/admin/AdminLessonManagement';
 import AdminUserManagement from './pages/admin/AdminUserManagement';
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage';
+import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import StudentDashboardPage from "./pages/StudentDashboardPage";
 import StudentProfilePage from "./pages/StudentProfilePageNew";
 import StudentAnalyticsPage from "./pages/StudentAnalyticsPage";
 import MyCoursesPage from "./pages/courses/MyCoursesPage";
-import LessonViewer from "./components/course/LessonViewer";
+import LessonViewer from "./components/course/EnhancedLessonViewer";
 import IntegrationSettingsPage from "./pages/IntegrationSettingsPage";
 import VisitorPage from "./pages/VisitorPage";
 import NotAuthorizedPage from "./pages/NotAuthorizedPage";
@@ -107,7 +112,7 @@ const App = () => (
               path="/admin/dashboard" 
               element={
                 <ProtectedRoute requiredRole="admin">
-                  <AdminDashboardPage />
+                  <AdminDashboard />
                 </ProtectedRoute>
               } 
             />
@@ -124,6 +129,38 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AdminCourseManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/modules" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminModuleManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/modules/:moduleId/lessons" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminLessonManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/analytics" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminAnalyticsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin/settings" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AdminSettingsPage />
                 </ProtectedRoute>
               } 
             />

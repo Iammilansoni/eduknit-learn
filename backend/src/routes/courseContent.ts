@@ -1,83 +1,72 @@
 import express from 'express';
-import { authenticateJWT } from '../middleware/auth';
 import {
-    getAllCourses,
-    getCourseDetails,
-    getModulesForCourse,
-    getLessonsForModule,
-    getLessonDetails,
-    getLessonContent,
-    submitQuiz,
-    getNextModule,
-    getCourseMapping
+  getModulesForCourse,
+  getLessonsForModule,
+  getLessonDetails,
+  getLessonContent,
+  updateLessonProgress,
+  submitQuiz,
+  getNextModule,
+  getCourseProgress
 } from '../controllers/courseContentController';
+import { authenticateJWT } from '../middleware/auth';
 
 const router = express.Router();
 
 /**
- * @route GET /api/courses
- * @desc Get all available courses
- * @access Public
+ * @route GET /api/course-content/modules/:programmeId
+ * @desc Get all modules for a course with progress information
+ * @access Public (with optional studentId query param)
  */
-router.get('/', getAllCourses);
+router.get('/modules/:programmeId', getModulesForCourse);
 
 /**
- * @route GET /api/courses/mapping
- * @desc Get course slug to ID mapping
- * @access Public
+ * @route GET /api/course-content/lessons/:moduleId
+ * @desc Get all lessons for a module with progress information
+ * @access Public (with optional studentId query param)
  */
-router.get('/mapping', getCourseMapping);
+router.get('/lessons/:moduleId', getLessonsForModule);
 
 /**
- * @route GET /api/courses/:id
- * @desc Get specific course details
- * @access Public
+ * @route GET /api/course-content/lesson/:lessonId
+ * @desc Get detailed lesson information with navigation
+ * @access Public (with optional studentId query param)
  */
-router.get('/:id', getCourseDetails);
+router.get('/lesson/:lessonId', getLessonDetails);
 
 /**
- * @route GET /api/courses/:id/modules
- * @desc Get all modules for a specific course
- * @access Public
- */
-router.get('/:id/modules', getModulesForCourse);
-
-/**
- * @route GET /api/courses/:id/modules/:moduleId/lessons
- * @desc Get all lessons for a specific module
- * @access Public
- */
-router.get('/:id/modules/:moduleId/lessons', getLessonsForModule);
-
-/**
- * @route GET /api/lessons/:id
- * @desc Get specific lesson details
- * @access Public
- */
-router.get('/lessons/:id', getLessonDetails);
-
-/**
- * @route GET /api/lessons/:lessonId/content
+ * @route GET /api/course-content/lesson-content/:lessonId
  * @desc Get lesson content with quiz if available
- * @query studentId - Student ID for progress tracking
- * @access Private
+ * @access Public (with optional studentId query param)
  */
-router.get('/lessons/:lessonId/content', authenticateJWT, getLessonContent);
+router.get('/lesson-content/:lessonId', getLessonContent);
 
 /**
- * @route POST /api/lessons/:lessonId/quiz
- * @desc Submit quiz answers and get results
- * @body studentId, answers, timeSpent
+ * @route PUT /api/course-content/lesson-progress/:lessonId
+ * @desc Update lesson progress
  * @access Private
  */
-router.post('/lessons/:lessonId/quiz', authenticateJWT, submitQuiz);
+router.put('/lesson-progress/:lessonId', authenticateJWT, updateLessonProgress);
 
 /**
- * @route GET /api/courses/:programmeId/next-module
- * @desc Get next recommended module for a student
- * @query studentId - Student ID
+ * @route POST /api/course-content/quiz/:lessonId
+ * @desc Submit quiz answers
  * @access Private
  */
-router.get('/:programmeId/next-module', authenticateJWT, getNextModule);
+router.post('/quiz/:lessonId', authenticateJWT, submitQuiz);
+
+/**
+ * @route GET /api/course-content/next-module/:programmeId
+ * @desc Get next module recommendation
+ * @access Public (with optional studentId query param)
+ */
+router.get('/next-module/:programmeId', getNextModule);
+
+/**
+ * @route GET /api/course-content/progress/:programmeId
+ * @desc Get course progress overview
+ * @access Public (with optional studentId query param)
+ */
+router.get('/progress/:programmeId', getCourseProgress);
 
 export default router;
