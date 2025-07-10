@@ -108,7 +108,7 @@ app.use('/api/privacy', privacyRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api', courseContentRoutes);
+app.use('/api/courses', courseContentRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

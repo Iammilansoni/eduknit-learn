@@ -81,6 +81,7 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
   const [enrollmentLoading, setEnrollmentLoading] = useState(false);
   const [courseSlugToId, setCourseSlugToId] = useState<Record<string, string>>({});
   const [courses, setCourses] = useState<any[]>([]);
@@ -169,6 +170,7 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
       const result = await enrollInCourse(courseSlugToId[courseSlug]);
       console.log('Enrollment result:', result);
       
+      setIsAlreadyEnrolled(false);
       setShowSuccessModal(true);
       
       toast({
@@ -181,6 +183,8 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       
       if (errorMessage.includes('Already enrolled')) {
+        setIsAlreadyEnrolled(true);
+        setShowSuccessModal(true);
         toast({
           title: "Already Enrolled",
           description: "You're already enrolled in this course. Check your dashboard to continue learning.",
@@ -548,6 +552,7 @@ const ProgramPageTemplate: React.FC<ProgramPageProps> = ({
         onClose={() => setShowSuccessModal(false)}
         courseTitle={dynamicTitle}
         courseSlug={courseSlug}
+        isAlreadyEnrolled={isAlreadyEnrolled}
       />
     </Layout>
   );
