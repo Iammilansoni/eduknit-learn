@@ -17,7 +17,8 @@ import {
   TrendingUp,
   Database,
   Loader2,
-  LogOut
+  LogOut,
+  LucideIcon
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -33,7 +34,7 @@ interface RecentActivity {
   title: string;
   description: string;
   timestamp: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
   bgColor: string;
 }

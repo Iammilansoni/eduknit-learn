@@ -49,27 +49,39 @@ const StudentDashboardPage = () => {
 
   // Transform enrollments data for CourseList component
   const enrolledCourses = React.useMemo(() => {
-    if (!enrollments || !dashboard?.enrolledPrograms) return [];
+    console.log('enrollments:', enrollments, 'type:', typeof enrollments, 'isArray:', Array.isArray(enrollments));
+    
+    // More robust check for enrollments
+    if (!enrollments) {
+      console.log('enrollments is null/undefined');
+      return [];
+    }
+    
+    if (!Array.isArray(enrollments)) {
+      console.log('enrollments is not an array:', enrollments);
+      return [];
+    }
+    
+    console.log('enrollments is valid array with length:', enrollments.length);
     
     return enrollments.map(enrollment => {
-      const program = dashboard.enrolledPrograms.find(p => p._id === enrollment.programId);
       return {
         id: enrollment._id,
-        title: program?.title || 'Unknown Course',
-        progress: enrollment.progress || 0,
-        instructor: program?.instructor || 'TBD',
-        nextLesson: enrollment.nextLesson || 'Continue where you left off',
-        image: program?.image || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
-        status: enrollment.progress >= 100 ? 'Completed' : enrollment.progress > 0 ? 'In Progress' : 'Not Started',
-        lastAccessed: enrollment.lastAccessed ? new Date(enrollment.lastAccessed).toLocaleDateString() : 'Never',
-        nextSessionDate: enrollment.nextSessionDate,
-        zoomLink: enrollment.zoomLink,
-        path: `/programs/${program?.slug || enrollment.programId}`,
+        title: enrollment.programme?.title || 'Unknown Course',
+        progress: enrollment.progress?.totalProgress || 0,
+        instructor: enrollment.programme?.instructor || 'TBD',
+        nextLesson: 'Continue where you left off',
+        image: enrollment.programme?.thumbnail || 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+        status: enrollment.progress?.totalProgress >= 100 ? 'Completed' : enrollment.progress?.totalProgress > 0 ? 'In Progress' : 'Not Started',
+        lastAccessed: enrollment.progress?.lastActivityDate ? new Date(enrollment.progress.lastActivityDate).toLocaleDateString() : 'Never',
+        nextSessionDate: null,
+        zoomLink: null,
+        path: `/student-dashboard/courses/${enrollment.programmeId}?enrollmentId=${enrollment._id}`,
         enrollmentDate: enrollment.enrollmentDate,
-        completionDate: enrollment.completionDate
+        completionDate: enrollment.status === 'COMPLETED' ? enrollment.progress?.lastActivityDate : null
       };
     });
-  }, [enrollments, dashboard?.enrolledPrograms]);
+  }, [enrollments]);
 
   // Mock data for features not yet implemented in backend
   const upcomingDeadlines = [
@@ -340,12 +352,12 @@ const StudentDashboardPage = () => {
               </TabsList>
               
               <TabsContent value="my-courses" className="space-y-6">
-                {enrolledCourses.length > 0 ? (
+                {!enrollmentsLoading && enrolledCourses.length > 0 ? (
                   <CourseList 
                     courses={enrolledCourses} 
                     onContinueLearning={handleContinueLearning}
                   />
-                ) : (
+                ) : !enrollmentsLoading && enrolledCourses.length === 0 ? (
                   <Card>
                     <CardContent className="flex flex-col items-center justify-center py-12">
                       <Book className="h-16 w-16 text-gray-400 mb-4" />
@@ -358,7 +370,14 @@ const StudentDashboardPage = () => {
                       </Button>
                     </CardContent>
                   </Card>
-                )}
+                ) : enrollmentsLoading ? (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-eduBlue-500 mb-4" />
+                      <p className="text-gray-600 dark:text-gray-400">Loading your courses...</p>
+                    </CardContent>
+                  </Card>
+                ) : null}
                 <Button 
                   variant="ghost" 
                   className="w-full border border-dashed border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"

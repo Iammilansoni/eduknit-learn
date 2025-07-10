@@ -59,7 +59,13 @@ interface Lesson {
 interface CourseProgress {
   programmeId: string;
   programmeTitle: string;
-  overallProgress: number;
+  overallProgress: number | {
+    totalRequiredLessons: number;
+    completedRequiredLessons: number;
+    overallProgress: number;
+    totalTimeSpent: number;
+    averageProgress: number;
+  };
   modulesCompleted: number;
   totalModules: number;
   lessonsCompleted: number;
@@ -198,7 +204,9 @@ const CourseDetailPage: React.FC = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-eduBlue-600">
-                      {courseProgress.overallProgress}%
+                      {typeof courseProgress.overallProgress === 'object' 
+                        ? courseProgress.overallProgress.overallProgress || 0 
+                        : courseProgress.overallProgress || 0}%
                     </div>
                     <div className="text-sm text-gray-500">Overall Progress</div>
                   </div>
@@ -226,9 +234,13 @@ const CourseDetailPage: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Course Progress</span>
-                    <span>{courseProgress.overallProgress}%</span>
+                    <span>{typeof courseProgress.overallProgress === 'object' 
+                      ? courseProgress.overallProgress.overallProgress || 0 
+                      : courseProgress.overallProgress || 0}%</span>
                   </div>
-                  <Progress value={courseProgress.overallProgress} className="h-3" />
+                  <Progress value={typeof courseProgress.overallProgress === 'object' 
+                    ? courseProgress.overallProgress.overallProgress || 0 
+                    : courseProgress.overallProgress || 0} className="h-3" />
                 </div>
               </div>
             </div>
@@ -280,7 +292,8 @@ const CourseDetailPage: React.FC = () => {
           </CardHeader>
           <CardContent>
                   <div className="space-y-4">
-              {courseProgress.modules.map((module) => (
+              {courseProgress.modules && courseProgress.modules.length > 0 ? (
+                courseProgress.modules.map((module) => (
                 <Collapsible
                   key={module.id}
                   open={expandedModules.has(module.id)}
@@ -349,9 +362,15 @@ const CourseDetailPage: React.FC = () => {
                       ))}
                                     </div>
                                   </CollapsibleContent>
-                                </Collapsible>
-                              ))}
-                            </div>
+                </Collapsible>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No course content available</p>
+              </div>
+            )}
+          </div>
           </CardContent>
         </Card>
 

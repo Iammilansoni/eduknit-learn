@@ -18,8 +18,10 @@ export const useStudentEnrollments = () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await studentApi.getEnrollments();
-        setEnrollments(data);
+        const response = await studentApi.getEnrollments();
+        // Extract enrollments array from the response
+        const enrollmentsData = response.data?.enrollments || [];
+        setEnrollments(enrollmentsData);
       } catch (err) {
         console.error('Failed to fetch enrollments:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch enrollments');
@@ -35,8 +37,10 @@ export const useStudentEnrollments = () => {
     if (user?.id) {
       try {
         setError(null);
-        const data = await studentApi.getEnrollments();
-        setEnrollments(data);
+        const response = await studentApi.getEnrollments();
+        // Extract enrollments array from the response
+        const enrollmentsData = response.data?.enrollments || [];
+        setEnrollments(enrollmentsData);
       } catch (err) {
         console.error('Failed to refetch enrollments:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch enrollments');

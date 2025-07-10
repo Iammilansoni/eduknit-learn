@@ -269,13 +269,13 @@ export const studentApi = {
   },
 
   // Get student enrollments
-  async getEnrollments(): Promise<Enrollment[]> {
+  async getEnrollments(): Promise<{ data: { enrollments: Enrollment[]; pagination: any } }> {
     try {
-      const response = await api.get<ApiResponse<Enrollment[]>>('/student/enrollments');
+      const response = await api.get<ApiResponse<{ enrollments: Enrollment[]; pagination: any }>>('/student/enrollments');
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch enrollments');
       }
-      return response.data.data!;
+      return response.data;
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch enrollments');
