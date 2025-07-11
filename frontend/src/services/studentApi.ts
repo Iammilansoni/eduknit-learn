@@ -124,38 +124,43 @@ export interface Enrollment {
 }
 
 export interface StudentAnalytics {
-  studyTime: {
-    daily: { date: string; minutes: number }[];
-    weekly: { week: string; minutes: number }[];
-    monthly: { month: string; minutes: number }[];
+  overview: {
+    totalEnrollments: number;
+    completedCourses: number;
+    activeEnrollments: number;
+    certificatesEarned: number;
+    totalTimeSpent: number;
+    averageProgress: number;
   };
-  progress: {
-    trend: { date: string; percentage: number }[];
-    byCategory: { category: string; percentage: number }[];
-    byLevel: { level: string; percentage: number }[];
-  };
-  engagement: {
+  gamification: {
+    totalPoints: number;
+    level: number;
+    badges: Array<{
+      name: string;
+      description?: string;
+      earnedAt?: string;
+    }>;
     streaks: {
-      current: number;
-      longest: number;
-      history: { date: string; active: boolean }[];
-    };
-    sessions: {
-      totalSessions: number;
-      averageSessionTime: number;
-      sessionsThisWeek: number;
-      sessionsThisMonth: number;
+      currentLoginStreak: number;
+      longestLoginStreak: number;
+      currentLearningStreak: number;
+      longestLearningStreak: number;
     };
   };
-  achievements: {
-    total: number;
-    recent: {
-      id: string;
-      title: string;
-      unlockedAt: string;
-    }[];
-    categories: { category: string; count: number }[];
-  };
+  progressOverTime: Array<{
+    date: string;
+    progress: number;
+    timeSpent?: number;
+    activitiesCompleted?: number;
+  }>;
+  categoryProgress: Array<{
+    category: string;
+    progress: number;
+    totalCourses?: number;
+    completedCourses?: number;
+    timeSpent?: number;
+  }>;
+  profileCompleteness: number;
 }
 
 export interface LearningActivity {
@@ -205,10 +210,20 @@ export const studentApi = {
   },
 
   // Get student profile
-  async getProfile(studentId?: string): Promise<StudentProfile> {
+  async getProfile(studentId?: string): Promise<{
+    user: any;
+    profile: any;
+    enrolledPrograms: any[];
+    completeness: number;
+  }> {
     try {
       const url = studentId ? `/student/profile/${studentId}` : '/student/profile';
-      const response = await api.get<ApiResponse<StudentProfile>>(url);
+      const response = await api.get<ApiResponse<{
+        user: any;
+        profile: any;
+        enrolledPrograms: any[];
+        completeness: number;
+      }>>(url);
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch profile');
       }
@@ -340,7 +355,7 @@ export const studentApi = {
   // Get enrolled programs
   async getEnrolledPrograms(): Promise<EnrolledProgram[]> {
     try {
-      const response = await api.get<ApiResponse<EnrolledProgram[]>>('/student/programs');
+      const response = await api.get<ApiResponse<EnrolledProgram[]>>('/student/enrolled-programs');
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch enrolled programs');
       }

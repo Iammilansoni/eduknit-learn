@@ -20,6 +20,8 @@ import {
 } from '../utils/response';
 import { AuthenticatedRequest } from '../utils/jwt';
 import logger from '../config/logger';
+import AnalyticsService from '../services/analyticsService';
+import LessonCompletion from '../models/LessonCompletion';
 
 // Generate initials-based avatar URL
 const generateInitialsAvatar = (firstName?: string, lastName?: string, username?: string, email?: string): string => {
@@ -102,7 +104,7 @@ export const upload = multer({
 });
 
 /**
- * Get student dashboard data
+ * Get student dashboard data with comprehensive analytics
  */
 export const getStudentDashboard = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -124,51 +126,35 @@ export const getStudentDashboard = async (req: AuthenticatedRequest, res: Respon
     // Get student profile
     const profile = await StudentProfile.findOne({ userId: studentId });
 
-    // Get real enrollment data from database
-    const enrollments = await Enrollment.find({ studentId })
-      .populate('programmeId', 'title description duration level category modules totalModules')
-      .sort({ enrollmentDate: -1 }) as any[];
+    // Get comprehensive dashboard overview using analytics service
+    const dashboardOverview = await AnalyticsService.getDashboardOverview(studentId);
 
-    // Calculate real enrollment statistics
-    const activeEnrollments = enrollments.filter(e => e.status === 'ACTIVE');
-    const completedEnrollments = enrollments.filter(e => e.status === 'COMPLETED');
-    const pausedEnrollments = enrollments.filter(e => e.status === 'PAUSED');
+    // Get active enrollments for detailed view
+    const activeEnrollments = await Enrollment.find({ 
+      studentId, 
+      status: 'ACTIVE' 
+    })
+      .populate('programmeId', 'title description duration level category modules totalModules imageUrl')
+      .sort({ enrollmentDate: -1 })
+      .limit(6) as any[];
 
-    // Calculate total time spent across all enrollments
-    const totalTimeSpent = enrollments.reduce((sum, enrollment) => {
-      return sum + (enrollment.progress?.timeSpent || 0);
-    }, 0);
+    // Get recent activity from lesson completions
+    const recentCompletions = await LessonCompletion.find({ userId: studentId })
+      .populate('lessonId', 'title')
+      .sort({ completedAt: -1 })
+      .limit(10)
+      .lean();
 
-    // Calculate average progress
-    const averageProgress = enrollments.length > 0 
-      ? enrollments.reduce((sum, enrollment) => sum + (enrollment.progress?.totalProgress || 0), 0) / enrollments.length
-      : 0;
-
-    const stats = {
-      totalEnrollments: enrollments.length,
-      activeEnrollments: activeEnrollments.length,
-      completedCourses: completedEnrollments.length,
-      pausedCourses: pausedEnrollments.length,
-      averageProgress: Math.round(averageProgress),
-      totalTimeSpent: Math.round(totalTimeSpent), // in minutes
-      certificatesEarned: profile?.statistics?.totalCertificatesEarned || 0
-    };
-
-    // Get recent activity from enrollments
-    const recentActivity = enrollments
-      .filter(e => e.progress?.lastActivityDate)
-      .map(enrollment => ({
-        id: enrollment._id,
-        type: 'course_progress',
-        title: `Progress in ${enrollment.programmeId?.title || 'Course'}`,
-        description: `${enrollment.progress.totalProgress || 0}% complete`,
-        date: enrollment.progress.lastActivityDate,
-        progress: enrollment.progress.totalProgress || 0,
-        courseTitle: enrollment.programmeId?.title,
-        status: enrollment.status
-      }))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 10); // Limit to recent 10 activities
+    const recentActivity = recentCompletions.map((completion: any) => ({
+      id: completion._id,
+      type: 'lesson_completion',
+      title: `Completed ${(completion.lessonId as any)?.title || 'Lesson'}`,
+      description: `Earned 10 points`, // Fixed value since points is not in the schema
+      date: completion.completedAt,
+      progress: 100,
+      courseTitle: 'Course', // Would need to populate full hierarchy
+      status: 'completed'
+    }));
 
     // Mock upcoming deadlines (would be calculated from course modules/assignments)
     const upcomingDeadlines = activeEnrollments
@@ -189,14 +175,19 @@ export const getStudentDashboard = async (req: AuthenticatedRequest, res: Respon
         profile: profile || null
       },
       stats: {
-        totalCourses: stats.totalEnrollments,
-        completedCourses: stats.completedCourses,
-        inProgressCourses: stats.activeEnrollments,
-        pausedCourses: stats.pausedCourses,
-        averageProgress: stats.averageProgress,
-        totalTimeSpent: stats.totalTimeSpent,
-        certificatesEarned: stats.certificatesEarned
+        totalCourses: dashboardOverview.enrolledCourses.total,
+        completedCourses: dashboardOverview.enrolledCourses.completed,
+        inProgressCourses: dashboardOverview.enrolledCourses.active,
+        pausedCourses: dashboardOverview.enrolledCourses.paused,
+        averageProgress: dashboardOverview.overallProgress,
+        totalTimeSpent: dashboardOverview.totalTimeSpent,
+        certificatesEarned: dashboardOverview.certificatesEarned,
+        learningStreak: dashboardOverview.learningStreak,
+        longestStreak: dashboardOverview.longestStreak,
+        totalPoints: dashboardOverview.totalPoints,
+        level: dashboardOverview.level
       },
+      activeLearningPaths: dashboardOverview.activeLearningPaths,
       activeEnrollments: activeEnrollments.slice(0, 6), // Limit to 6 for dashboard
       recentActivity,
       upcomingDeadlines,
@@ -251,7 +242,7 @@ export const getStudentProfile = async (req: AuthenticatedRequest, res: Response
 
     // Get enrolled programs data
     const enrollments = await Enrollment.find({ userId: studentId })
-      .populate('programmeId', 'title description duration level category modules totalModules')
+      .populate('programmeId', 'title description duration level category modules')
       .sort({ enrollmentDate: -1 }) as any[];
 
     // Format enrolled programs for profile
@@ -586,6 +577,31 @@ export const getStudentEnrollments = async (req: AuthenticatedRequest, res: Resp
     // Transform the data to match frontend expectations
     const transformedEnrollments = enrollments.map(enrollment => {
       const programme = enrollment.programmeId as any;
+      
+      // Handle null/undefined programme
+      if (!programme) {
+        console.warn(`Programme not found for enrollment ${enrollment._id}`);
+        return {
+          id: enrollment._id.toString(),
+          programmeId: '',
+          status: enrollment.status,
+          enrollmentDate: enrollment.enrollmentDate,
+          progress: {
+            totalProgress: enrollment.progress?.totalProgress || 0,
+            completedLessons: enrollment.progress?.completedLessons || [],
+            timeSpent: enrollment.progress?.timeSpent || 0,
+            lastActivityDate: enrollment.progress?.lastActivityDate
+          },
+          programme: {
+            title: 'Unknown Programme',
+            description: 'Programme not found',
+            level: 'BEGINNER',
+            duration: 0,
+            category: 'Unknown'
+          }
+        };
+      }
+      
       return {
         id: enrollment._id.toString(),
         programmeId: programme._id?.toString() || '',
@@ -724,70 +740,78 @@ export const updateLearningActivity = async (req: AuthenticatedRequest, res: Res
 export const getStudentAnalytics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const studentId = req.user?.id;
+    const { days = 30 } = req.query;
+
     if (!studentId) {
-      return forbidden(res, 'Student ID is required');
+      validationError(res, 'Student ID is required');
+      return;
     }
 
-    // Get student profile
-    const profile = await StudentProfile.findOne({ userId: studentId });
-    if (!profile) {
-      return notFound(res, 'Student profile not found');
-    }
+    const daysBack = parseInt(days as string, 10);
 
-    // Get enrollments data
-    const enrollments = await Enrollment.find({ studentId });
-    const completedEnrollments = enrollments.filter(e => e.status === 'COMPLETED');
-    const activeEnrollments = enrollments.filter(e => e.status === 'ACTIVE');
+    // Get comprehensive analytics data
+    const analyticsData = await AnalyticsService.getAnalyticsData(studentId, daysBack);
 
-    // Calculate overview metrics
-    const overview = {
-      totalEnrollments: enrollments.length,
-      completedCourses: completedEnrollments.length,
-      activeEnrollments: activeEnrollments.length,
-      certificatesEarned: profile.statistics.totalCertificatesEarned,
-      totalTimeSpent: profile.statistics.totalLearningHours,
-      averageProgress: enrollments.length > 0 
-        ? Math.round(enrollments.reduce((sum, e) => sum + e.progress.totalProgress, 0) / enrollments.length)
-        : 0
+    // Get dashboard overview for summary stats
+    const dashboardOverview = await AnalyticsService.getDashboardOverview(studentId);
+
+    const analytics = {
+      overview: {
+        totalCourses: dashboardOverview.enrolledCourses.total,
+        activeCourses: dashboardOverview.enrolledCourses.active,
+        completedCourses: dashboardOverview.enrolledCourses.completed,
+        overallProgress: dashboardOverview.overallProgress,
+        learningStreak: dashboardOverview.learningStreak,
+        longestStreak: dashboardOverview.longestStreak,
+        totalPoints: dashboardOverview.totalPoints,
+        level: dashboardOverview.level,
+        totalTimeSpent: dashboardOverview.totalTimeSpent
+      },
+      charts: {
+        courseWiseProgress: analyticsData.courseWiseProgress,
+        timeSpentPerCourse: analyticsData.timeSpentPerCourse,
+        streakTrends: analyticsData.streakTrends,
+        pointsEarned: analyticsData.pointsEarned,
+        dailyEngagement: analyticsData.dailyEngagement
+      },
+      details: {
+        lessonsCompleted: analyticsData.lessonsCompleted,
+        modulesMastered: analyticsData.modulesMastered
+      }
     };
 
-    // Gamification data
-    const gamification = {
-      totalPoints: profile.gamification.totalPoints,
-      level: profile.gamification.level,
-      badges: profile.gamification.badges,
-      streaks: profile.gamification.streaks
-    };
-
-    // Mock data for progress over time (in real implementation, this would come from activity logs)
-    const progressOverTime = [
-      { date: '2024-01-01', progress: 10, timeSpent: 120, activitiesCompleted: 5 },
-      { date: '2024-01-02', progress: 25, timeSpent: 180, activitiesCompleted: 8 },
-      { date: '2024-01-03', progress: 40, timeSpent: 150, activitiesCompleted: 6 },
-      { date: '2024-01-04', progress: 60, timeSpent: 200, activitiesCompleted: 10 },
-      { date: '2024-01-05', progress: 75, timeSpent: 240, activitiesCompleted: 12 }
-    ];
-
-    // Mock data for category progress
-    const categoryProgress = [
-      { category: 'Web Development', progress: 85, totalCourses: 5, completedCourses: 4, timeSpent: 120 },
-      { category: 'Data Science', progress: 60, totalCourses: 3, completedCourses: 1, timeSpent: 80 },
-      { category: 'Mobile Development', progress: 30, totalCourses: 2, completedCourses: 0, timeSpent: 45 }
-    ];
-
-    const analyticsData = {
-      overview,
-      gamification,
-      progressOverTime,
-      categoryProgress,
-      profileCompleteness: profile.statistics.profileCompleteness
-    };
-
-    success(res, analyticsData, 'Student analytics retrieved successfully');
-
+    success(res, analytics, 'Student analytics retrieved successfully');
   } catch (error) {
-    logger.error('Get student analytics error:', error);
+    logger.error('Error getting student analytics:', error);
     serverError(res, 'Failed to retrieve student analytics');
+  }
+};
+
+/**
+ * Get detailed analytics for a specific course
+ */
+export const getCourseAnalytics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = req.user?.id;
+    const { courseId } = req.params;
+
+    if (!studentId) {
+      validationError(res, 'Student ID is required');
+      return;
+    }
+
+    if (!courseId) {
+      validationError(res, 'Course ID is required');
+      return;
+    }
+
+    // Get detailed course analytics
+    const courseAnalytics = await AnalyticsService.getCourseAnalytics(studentId, courseId);
+
+    success(res, courseAnalytics, 'Course analytics retrieved successfully');
+  } catch (error) {
+    logger.error('Error getting course analytics:', error);
+    serverError(res, 'Failed to retrieve course analytics');
   }
 };
 

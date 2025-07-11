@@ -7,11 +7,42 @@ import {
   updateLessonProgress,
   submitQuiz,
   getNextModule,
-  getCourseProgress
+  getCourseProgress,
+  getAllCourses,
+  getCourseMapping
 } from '../controllers/courseContentController';
+import { getCourseBySlug, debugAllCourses } from '../controllers/courseController';
 import { authenticateJWT } from '../middleware/auth';
 
 const router = express.Router();
+
+/**
+ * @route GET /api/courses
+ * @desc Get all active courses
+ * @access Public
+ */
+router.get('/', getAllCourses);
+
+/**
+ * @route GET /api/courses/mapping
+ * @desc Get course slug to ID mapping
+ * @access Public
+ */
+router.get('/mapping', getCourseMapping);
+
+/**
+ * @route GET /api/courses/debug
+ * @desc Debug endpoint to list all courses with slugs
+ * @access Public
+ */
+router.get('/debug', debugAllCourses);
+
+/**
+ * @route GET /api/courses/slug/:slug
+ * @desc Get course by slug
+ * @access Public
+ */
+router.get('/slug/:slug', getCourseBySlug);
 
 /**
  * @route GET /api/course-content/modules/:programmeId

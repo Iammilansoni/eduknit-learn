@@ -9,6 +9,7 @@ import ProgrammeModule, { IProgrammeModule } from '../models/ProgrammeModule';
 import LessonCompletion from '../models/LessonCompletion';
 import { AuthRequest } from '../middleware/auth';
 import ProgressService from '../services/progressService';
+import AnalyticsService from '../services/analyticsService';
 
 // Define populated interfaces for proper typing
 interface PopulatedProgrammeModule extends Omit<IProgrammeModule, 'programmeId'> {
@@ -309,7 +310,7 @@ export const markLessonCompleted = async (req: AuthRequest, res: Response) => {
 
         const moduleData = lesson.moduleId;
         const moduleId = moduleData._id;
-        const programmeId = moduleData.programmeId._id;
+        const programmeId = ((moduleData.programmeId as any)?._id || moduleData.programmeId).toString();
 
         // Start transaction for atomic operation
         const session = await UserCourseProgress.startSession();
@@ -379,6 +380,21 @@ export const markLessonCompleted = async (req: AuthRequest, res: Response) => {
             }
 
             await session.commitTransaction();
+
+            // Update analytics after successful completion
+            try {
+                const points = 10; // Base points for lesson completion
+                await AnalyticsService.updateAnalyticsOnLessonCompletion(
+                    studentId,
+                    lessonId,
+                    (programmeId as any).toString(),
+                    timeSpent || 0,
+                    points
+                );
+            } catch (analyticsError) {
+                console.error('Error updating analytics:', analyticsError);
+                // Don't fail the main operation if analytics update fails
+            }
 
             res.status(200).json({
                 success: true,
@@ -852,6 +868,7 @@ export const getCourseProgressDetails = async (req: AuthRequest, res: Response) 
  */
 export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
     try {
+        console.log('getProgressDashboard called with studentId:', req.params.studentId);
         const { studentId } = req.params;
         const userId = req.user?.id;
 
@@ -871,15 +888,19 @@ export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
         }
 
         // Get all enrollments for the student
+        console.log('Fetching enrollments for studentId:', studentId);
         const enrollments = await Enrollment.find({ studentId })
             .populate('programmeId', 'title category durationDays totalLessons')
             .lean();
+        console.log('Found enrollments:', enrollments.length);
 
         // Get lesson completions
+        console.log('Fetching lesson completions for userId:', studentId);
         const allCompletions = await LessonCompletion.find({ userId: studentId }).lean();
+        console.log('Found lesson completions:', allCompletions.length);
 
         // Get quiz results
-        const quizResults = await QuizResult.find({ userId: studentId }).lean();
+        const quizResults = await QuizResult.find({ studentId: studentId }).lean();
 
         // Calculate dashboard metrics
         const enrolledCoursesCount = enrollments.length;
@@ -894,10 +915,14 @@ export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
         }> = [];
         let totalStudyTime = 0;
 
-        const courseProgressList = enrollments.map(enrollment => {
+        const courseProgressList = enrollments
+          .map(enrollment => {
             const programme = enrollment.programmeId as any;
-            const courseCompletions = allCompletions.filter(c => c.courseId.toString() === programme._id.toString());
-            
+            if (!programme) {
+              console.warn('Programme not found for enrollment', enrollment._id);
+              return null;
+            }
+            const courseCompletions = allCompletions.filter(c => c.courseId.toString() === (programme && programme._id ? programme._id.toString() : ''));
             const actualProgress = (courseCompletions.length / (programme.totalLessons || 1)) * 100;
             totalProgress += actualProgress;
 
@@ -908,27 +933,28 @@ export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
             // Calculate expected completion date
             const enrollmentDate = new Date(enrollment.enrollmentDate);
             const expectedCompletionDate = new Date(enrollmentDate.getTime() + (programme.durationDays || 30) * 24 * 60 * 60 * 1000);
-            
+
             // Check if deadline is within next 7 days
             const now = new Date();
             const daysUntilDeadline = Math.ceil((expectedCompletionDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            
+
             if (daysUntilDeadline <= 7 && daysUntilDeadline > 0 && enrollment.status !== 'COMPLETED') {
-                upcomingDeadlines.push({
-                    courseTitle: programme.title,
-                    daysLeft: daysUntilDeadline,
-                    expectedDate: expectedCompletionDate
-                });
+              upcomingDeadlines.push({
+                courseTitle: programme.title,
+                daysLeft: daysUntilDeadline,
+                expectedDate: expectedCompletionDate
+              });
             }
 
             return {
-                courseId: programme._id,
-                title: programme.title,
-                progress: Math.round(actualProgress),
-                status: enrollment.status,
-                category: programme.category
+              courseId: programme._id,
+              title: programme.title,
+              progress: Math.round(actualProgress),
+              status: enrollment.status,
+              category: programme.category
             };
-        });
+          })
+          .filter(Boolean);
 
         const overallProgress = enrollments.length > 0 ? totalProgress / enrollments.length : 0;
 
@@ -1000,9 +1026,11 @@ export const getProgressDashboard = async (req: AuthRequest, res: Response) => {
         });
     } catch (error) {
         console.error('Error getting progress dashboard:', error);
+        console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
         res.status(500).json({
             success: false,
-            message: 'Failed to retrieve dashboard data'
+            message: 'Failed to retrieve dashboard data',
+            error: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : undefined
         });
     }
 };

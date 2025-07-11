@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useStudentEnrollments } from '@/hooks/use-student-profile';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,14 @@ import {
   ArrowRight,
   MoreVertical,
   Pause,
-  PlayCircle
+  PlayCircle,
+  RefreshCw
 } from 'lucide-react';
-import { studentAPI } from '@/services/api';
+import { studentApi as studentAPI } from '@/services/studentApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
 import { useUpdateEnrollmentStatus } from '@/hooks/useCourseProgress';
 import { toast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,35 +65,57 @@ interface CourseEnrollment {
 const MyCoursesPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Status update hook
   const { updateStatus, loading: statusUpdateLoading } = useUpdateEnrollmentStatus();
 
   // Fetch enrolled courses
-  const { data: enrollmentsData, isLoading, error } = useQuery({
-    queryKey: ['student-enrollments'],
-    queryFn: studentAPI.getStudentEnrollments,
-    enabled: !!user?.id,
-    retry: (failureCount, error: any) => {
-      // Don't retry on authentication errors
-      if (error?.response?.status === 401 || error?.response?.status === 403) {
-        return false;
-      }
-      return failureCount < 3;
-    },
-    onError: (error: any) => {
-      console.error('Failed to fetch enrollments:', error);
-      // Don't redirect on auth errors, let the component handle it
-      if (error?.response?.status === 401 || error?.response?.status === 403) {
-        console.log('Authentication error in MyCoursesPage, but not redirecting');
-      }
-    }
-  });
+  const { data: enrollmentsData, isLoading, error, refetch } = useStudentEnrollments();
 
-  const enrollments = (enrollmentsData?.data?.enrollments || []) as CourseEnrollment[];
+  // Force refetch enrollments on mount and when user changes
+  useEffect(() => {
+    if (user?.id) {
+      refetch();
+    }
+  }, [user?.id, refetch]);
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['student-enrollments'] });
+      await refetch();
+      toast({
+        title: "Refreshed",
+        description: "Your courses have been updated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to refresh courses",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Handle the corrected data structure: { enrollments: [...], pagination: {...} }
+  const enrollments = (enrollmentsData?.enrollments || []) as CourseEnrollment[];
+
+  // Debug: Log enrollments data
+  useEffect(() => {
+    console.log('MyCoursesPage - Current enrollments:', enrollments);
+    console.log('MyCoursesPage - Enrollments count:', enrollments.length);
+    if (enrollments.length > 0) {
+      console.log('MyCoursesPage - First enrollment:', enrollments[0]);
+    }
+  }, [enrollments]);
 
   // Filter courses based on search and filters
   const filteredEnrollments = enrollments.filter(enrollment => {
@@ -236,9 +260,19 @@ const MyCoursesPage: React.FC = () => {
               Continue your learning journey
             </p>
           </div>
-          <Button onClick={() => navigate('/programs')}>
-            Browse More Courses
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            <Button onClick={() => navigate('/programs')}>
+              Browse More Courses
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}

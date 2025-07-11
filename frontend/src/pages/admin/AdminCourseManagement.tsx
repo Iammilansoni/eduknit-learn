@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Course form schema
 const courseSchema = z.object({
@@ -118,6 +119,7 @@ const AdminCourseManagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -198,42 +200,52 @@ const AdminCourseManagement = () => {
   // Create course
   const onSubmit = async (data: CourseFormData) => {
     try {
-      const url = editingCourse 
-        ? `/api/admin/courses/${editingCourse.id}`
-        : '/api/admin/courses';
-      
-      const method = editingCourse ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
+      setLoading(true);
+      const response = await fetch('/api/admin/courses', {
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          ...data,
+          slug: data.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+          isActive: true,
+          createdBy: user?.id,
+          lastModifiedBy: user?.id
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save course');
+        throw new Error('Failed to create course');
       }
 
-      toast({
-        title: "Success",
-        description: `Course ${editingCourse ? 'updated' : 'created'} successfully`
-      });
-
-      setShowCreateDialog(false);
-      setShowEditDialog(false);
-      setEditingCourse(null);
-      reset();
-      fetchCourses();
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Course created successfully",
+        });
+        setShowCreateDialog(false);
+        reset();
+        fetchCourses();
+        
+        // Invalidate related queries to update programs page
+        queryClient.invalidateQueries({ queryKey: ['courses'] });
+        queryClient.invalidateQueries({ queryKey: ['course-mapping'] });
+      } else {
+        throw new Error(result.message || 'Failed to create course');
+      }
     } catch (error) {
-      console.error('Error saving course:', error);
+      console.error('Error creating course:', error);
       toast({
         title: "Error",
-        description: "Failed to save course",
+        description: error instanceof Error ? error.message : "Failed to create course",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -272,26 +284,45 @@ const AdminCourseManagement = () => {
   // Toggle course status
   const handleToggleStatus = async (courseId: string) => {
     try {
+      const course = courses.find(c => c.id === courseId);
+      if (!course) return;
+
       const response = await fetch(`/api/admin/courses/${courseId}/toggle-status`, {
         method: 'PATCH',
-        credentials: 'include'
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          isActive: !course.isActive,
+          lastModifiedBy: user?.id
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to toggle course status');
+        throw new Error('Failed to update course status');
       }
 
-      toast({
-        title: "Success",
-        description: "Course status updated successfully"
-      });
-
-      fetchCourses();
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: `Course ${course.isActive ? 'deactivated' : 'activated'} successfully`,
+        });
+        fetchCourses();
+        
+        // Invalidate related queries to update programs page
+        queryClient.invalidateQueries({ queryKey: ['courses'] });
+        queryClient.invalidateQueries({ queryKey: ['course-mapping'] });
+      } else {
+        throw new Error(result.message || 'Failed to update course status');
+      }
     } catch (error) {
-      console.error('Error toggling course status:', error);
+      console.error('Error updating course status:', error);
       toast({
         title: "Error",
-        description: "Failed to update course status",
+        description: error instanceof Error ? error.message : "Failed to update course status",
         variant: "destructive"
       });
     }
@@ -325,6 +356,59 @@ const AdminCourseManagement = () => {
   const handleViewCourse = (course: Course) => {
     setSelectedCourse(course);
     fetchCourseStats(course.id);
+  };
+
+  // Update course
+  const handleUpdateCourse = async (data: CourseFormData) => {
+    if (!editingCourse) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/admin/courses/${editingCourse.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...data,
+          slug: data.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+          lastModifiedBy: user?.id
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update course');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Course updated successfully",
+        });
+        setShowEditDialog(false);
+        setEditingCourse(null);
+        reset();
+        fetchCourses();
+        
+        // Invalidate related queries to update programs page
+        queryClient.invalidateQueries({ queryKey: ['courses'] });
+        queryClient.invalidateQueries({ queryKey: ['course-mapping'] });
+      } else {
+        throw new Error(result.message || 'Failed to update course');
+      }
+    } catch (error) {
+      console.error('Error updating course:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update course",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getCategoryColor = (category: string) => {
@@ -889,7 +973,7 @@ const AdminCourseManagement = () => {
                 Update course information
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit(handleUpdateCourse)} className="space-y-6">
               {/* Same form fields as create dialog */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>

@@ -1,15 +1,6 @@
-import axios from 'axios';
-
-const API_BASE_URL = '/api';
-
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
+import api from './api';
+import type { ApiResponse } from './api';
+import type { AxiosError } from 'axios';
 
 // Types for Progress API responses
 export interface ProgressData {
@@ -286,6 +277,66 @@ export const progressApi = {
     }
   },
 
+  // Additional methods for hooks compatibility
+  async markLessonAsCompleted(lessonId: string, data: {
+    timeSpent: number;
+    watchTimeVideo?: number;
+    notes?: string;
+  }): Promise<any> {
+    const response = await api.post(`/progress/lesson/${lessonId}/complete`, data);
+    return response.data;
+  },
+
+  async updateLessonProgressNew(lessonId: string, data: {
+    progressPercentage: number;
+    timeSpent: number;
+    watchTimeVideo?: number;
+    notes?: string;
+  }): Promise<any> {
+    const response = await api.put(`/progress/lesson/${lessonId}/progress`, data);
+    return response.data;
+  },
+
+  async recordQuizResultNew(lessonId: string, quizData: any): Promise<any> {
+    const response = await api.post(`/progress/lesson/${lessonId}/quiz`, quizData);
+    return response.data;
+  },
+
+  async getDashboardData(studentId: string): Promise<any> {
+    const response = await api.get(`/progress/dashboard/${studentId}`);
+    return response.data;
+  },
+
+  async getSmartProgress(courseId: string): Promise<any> {
+    const response = await api.get(`/progress/smart/${courseId}`);
+    return response.data;
+  },
+
+  async markLessonComplete(data: any): Promise<any> {
+    const response = await api.post('/progress/lesson/complete', data);
+    return response.data;
+  },
+
+  async submitQuiz(data: any): Promise<any> {
+    const response = await api.post('/progress/quiz/submit', data);
+    return response.data;
+  },
+
+  async enrollInProgram(programmeId: string): Promise<any> {
+    const response = await api.post('/student/enroll', { programmeId });
+    return response.data;
+  },
+
+  // Additional methods for testing and compatibility
+  async getGeneralProgress(): Promise<any> {
+    const response = await api.get('/progress');
+    return response.data;
+  },
+
+  async getCourseProgressDetails(courseId: string): Promise<any> {
+    const response = await api.get(`/progress/course-details/${courseId}`);
+    return response.data;
+  },
 
 };
 

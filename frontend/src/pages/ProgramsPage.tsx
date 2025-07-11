@@ -1,107 +1,288 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Lightbulb, Brain, Megaphone, Bot, Database, FlaskConical, GraduationCap, Users } from 'lucide-react';
+import { Lightbulb, Brain, Megaphone, Bot, Database, FlaskConical, GraduationCap, Users, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContextUtils';
+import { useEnrollment } from '@/hooks/useCourseProgress';
+import EnrollmentSuccessModal from '@/components/enrollment/EnrollmentSuccessModal';
+import { useToast } from '@/hooks/use-toast';
+import axios from 'axios';
 
-const programs = [
-  {
-    title: "Communication Skills",
-    description: "Speak smart. Think sharp. Lead with confidence.",
-    features: ["Personality development", "Interview & GD training", "Presentation & corporate etiquette"],
-    icon: Users,
-    gradient: "from-eduBlue-100 to-eduBlue-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    path: "/programs/communication-skills"
-  },
-  {
-    title: "Digital Marketing",
-    description: "Learn how businesses grow in the real world — and how you can, too.",
-    features: ["Social media strategy", "Performance marketing", "Branding & campaign planning"],
-    icon: Megaphone,
-    gradient: "from-eduOrange-100 to-eduOrange-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    path: "/programs/digital-marketing"
-  },
-  {
-    title: "Basics of AI",
-    description: "AI is not just the future — it's your future.",
-    features: ["Machine learning concepts", "AI in real life", "Ethical and practical AI use"],
-    icon: Brain,
-    gradient: "from-eduBlue-100 to-eduBlue-50",
-    image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-    path: "/programs/basics-of-ai"
-
-  },
-  {
-    title: "AI Prompt Crafting",
-    description: "Don't just use ChatGPT — command it like a pro.",
-    features: ["Prompt engineering", "AI + human collaboration", "Hands-on mini-projects"],
-    icon: Bot,
-    gradient: "from-eduOrange-100 to-eduOrange-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    path: "/programs/ai-prompt-crafting"
-  },
-  {
-    title: "Data Analytics",
-    description: "Make decisions like a CEO — with data.",
-    features: ["Excel, Sheets & visualization tools", "Industry use-cases", "Intro to Python for analysis"],
-    icon: Database,
-    gradient: "from-eduBlue-100 to-eduBlue-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    path: "/programs/data-analytics"
-  },
-  {
-    title: "BioSkills",
-    description: "Get beyond textbooks. Build industry-relevant biology skills.",
-    features: ["Applied biology thinking", "Case-based learning", "Career paths in biosciences"],
-    icon: FlaskConical,
-    gradient: "from-eduOrange-100 to-eduOrange-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    path: "/programs/bioskills"
-  },
-  {
-    title: "Decision-Making Skills",
-    description: "Learn how top leaders think.",
-    features: ["Critical thinking", "Problem solving", "Real-life decision simulations"],
-    icon: Lightbulb,
-    gradient: "from-eduBlue-100 to-eduBlue-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    path: "/programs/decision-making"
-  },
-
- 
-    {
-    title: "Mathemtics",
-    description: "Your step-by-step guide to solve your queries.",
-    features: ["Critical thinking", "Problem solving", "Real-life decision simulations"],
-    icon: Lightbulb,
-     gradient: "from-eduOrange-100 to-eduOrange-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    path: "/programs/mathematics"
-  },
-   {
-    title: "Job Search Program",
-    description: "Your step-by-step guide to land internships & jobs.",
-    features: ["Resume & LinkedIn building", "Interview simulations", "Freelancing guidance"],
-    icon: GraduationCap,
-     gradient: "from-eduBlue-100 to-eduBlue-50",
-     image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwd-Jrsg6-Cf9DJyycq2CcMy9vEWQpebhu8mz8TEXINQ4FFhql486cJdDxQfEqUZvaAoA&usqp=CAU", // Add this line
-   
-    comingSoon: true
-  }
-];
+interface Course {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  level: string;
+  slug: string;
+  imageUrl?: string;
+  isActive: boolean;
+  totalModules: number;
+  totalLessons: number;
+  estimatedDuration: number;
+  price: number;
+  currency: string;
+}
 
 const ProgramsPage = () => {
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
+  const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { enrollInCourse, loading: enrollLoading, error: enrollError } = useEnrollment();
+  const queryClient = useQueryClient();
+
+  // Fetch all courses from backend
+  const { data: coursesData, isLoading: coursesLoading, error: coursesError, refetch: refetchCourses } = useQuery({
+    queryKey: ['courses'],
+    queryFn: async () => {
+      console.log('Fetching courses from /api/courses...');
+      const response = await axios.get('/api/courses');
+      console.log('API response:', response);
+      console.log('API response data:', response.data);
+      console.log('API response data.data:', response.data.data);
+      if (response.data.data && response.data.data.length > 0) {
+        console.log('First course from API:', response.data.data[0]);
+        console.log('First course keys:', Object.keys(response.data.data[0]));
+      }
+      return response.data;
+    },
+    staleTime: 30 * 1000, // Reduced to 30 seconds for more frequent updates
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    refetchInterval: 60 * 1000, // Refetch every minute when page is visible
+  });
+
+  // Refetch courses on window focus to ensure up-to-date status after admin toggles
+  useEffect(() => {
+    const handleFocus = () => {
+      queryClient.invalidateQueries({ queryKey: ['courses'] });
+      refetchCourses();
+    };
+    
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        queryClient.invalidateQueries({ queryKey: ['courses'] });
+        refetchCourses();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [queryClient, refetchCourses]);
+
+  const courses = useMemo(() => coursesData?.data || [], [coursesData?.data]);
+
+  // Debug: Log course statuses
+  useEffect(() => {
+    if (courses.length > 0) {
+      console.log('Current courses status:', courses.map(c => ({ 
+        title: c.title, 
+        isActive: c.isActive,
+        id: c.id,
+        hasId: !!c.id,
+        fullCourse: c
+      })));
+      
+      // Log the raw courses data to see all fields
+      console.log('Raw courses data:', courses);
+      console.log('First course keys:', Object.keys(courses[0] || {}));
+      console.log('First course full object:', courses[0]);
+    }
+  }, [courses]);
+
+  const handleRefreshCourses = async () => {
+    setIsRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['courses'] });
+      await refetchCourses();
+      toast({
+        title: "Courses Updated",
+        description: "Course list has been refreshed successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Refresh Failed",
+        description: "Failed to refresh courses. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Get icon for course category
+  const getCategoryIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'communication':
+      case 'professional_skills':
+        return Users;
+      case 'digital_marketing':
+      case 'marketing':
+        return Megaphone;
+      case 'ai':
+      case 'artificial_intelligence':
+        return Brain;
+      case 'data':
+      case 'data_analytics':
+        return Database;
+      case 'bioskills':
+      case 'biology':
+        return FlaskConical;
+      case 'decision_making':
+      case 'critical_thinking':
+        return Lightbulb;
+      case 'mathematics':
+      case 'math':
+        return GraduationCap;
+      case 'job_search':
+      case 'career':
+        return GraduationCap;
+      default:
+        return Users;
+    }
+  };
+
+  // Get gradient class for course
+  const getGradientClass = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'communication':
+      case 'professional_skills':
+        return "from-eduBlue-100 to-eduBlue-50";
+      case 'digital_marketing':
+      case 'marketing':
+        return "from-eduOrange-100 to-eduOrange-50";
+      case 'ai':
+      case 'artificial_intelligence':
+        return "from-eduBlue-100 to-eduBlue-50";
+      case 'data':
+      case 'data_analytics':
+        return "from-eduBlue-100 to-eduBlue-50";
+      case 'bioskills':
+      case 'biology':
+        return "from-eduOrange-100 to-eduOrange-50";
+      case 'decision_making':
+      case 'critical_thinking':
+        return "from-eduBlue-100 to-eduBlue-50";
+      case 'mathematics':
+      case 'math':
+        return "from-eduOrange-100 to-eduOrange-50";
+      case 'job_search':
+      case 'career':
+        return "from-eduBlue-100 to-eduBlue-50";
+      default:
+        return "from-eduBlue-100 to-eduBlue-50";
+    }
+  };
+
+  const handleEnrollNow = async (course: Course) => {
+    console.log('handleEnrollNow called with course:', course);
+    console.log('Course ID:', course.id);
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to enroll in this course.",
+        variant: "destructive",
+      });
+      navigate('/login', { state: { from: '/programs' } });
+      return;
+    }
+
+    if (!course.id) {
+      console.error('Course ID is missing!', course);
+      toast({
+        title: "Enrollment Failed",
+        description: "Course ID is missing. Please refresh the page and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setEnrollmentLoading(true);
+      setSelectedCourse(course);
+      
+      console.log('About to call enrollInCourse with:', course.id);
+      const result = await enrollInCourse(course.id);
+      console.log('Enrollment result:', result);
+      
+      setIsAlreadyEnrolled(false);
+      setShowSuccessModal(true);
+      
+      toast({
+        title: "Enrollment Successful!",
+        description: `You've been enrolled in ${course.title}`,
+      });
+    } catch (error: unknown) {
+      console.error('Enrollment error:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      
+      if (errorMessage.includes('Already enrolled')) {
+        setIsAlreadyEnrolled(true);
+        setShowSuccessModal(true);
+        toast({
+          title: "Already Enrolled",
+          description: "You're already enrolled in this course. Check your dashboard to continue learning.",
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Enrollment Failed",
+          description: errorMessage || "Failed to enroll in the course. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setEnrollmentLoading(false);
+    }
+  };
+
+  const handleLearnMore = (course: Course) => {
+    navigate(`/programs/${course.slug}`);
+  };
+
+  if (coursesLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-eduBlue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading programs...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (coursesError) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <p className="text-red-600 mb-4">Failed to load programs</p>
+            <Button onClick={() => window.location.reload()}>Try Again</Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
@@ -133,170 +314,157 @@ const ProgramsPage = () => {
                   while others are still waiting for results.
                 </p>
               </div>
+              
+              {/* Refresh Button */}
+              <div className="mt-6">
+                <Button
+                  onClick={handleRefreshCourses}
+                  disabled={isRefreshing || coursesLoading}
+                  variant="outline"
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                >
+                  <RefreshCw className={cn("w-4 h-4 mr-2", isRefreshing && "animate-spin")} />
+                  {isRefreshing ? "Refreshing..." : "Refresh Courses"}
+                </Button>
+              </div>
             </div>
           </div>
         </section>
 
-
-
         {/* Programs Grid */}
-      <section className="py-16 bg-blue-200 dark:bg-gray-800/50">
-  <div className="edu-container">
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      {programs.map((program, index) => (
-        <Card
-          key={index}
-          style={{
-            borderTopLeftRadius: 0,
-            borderTopRightRadius: "60px",
-            borderBottomLeftRadius: "60px",
-            borderBottomRightRadius: 0,
-          }}
-          className={cn(
-            "group transition-all duration-300 overflow-hidden border-2 shadow-md transform hover:scale-105",
-            program.comingSoon && "opacity-75",
-            program.gradient.includes("eduBlue")
-              ? "border-[#0e2445]"
-              : "border-[#f57920]",
-            "hover:bg-[#f57920]"
-          )}
-        >
-          {/* Top Gradient Strip */}
-          <div className={cn("h-2 w-full bg-gradient-to-r", program.gradient)} />
-
-          {/* Image */}
-          {program.image && (
-            <img
-              src={program.image}
-              alt={program.title}
-              className="w-full h-48 object-cover"
-            />
-          )}
-
-          {/* Card Header */}
-          <CardHeader className="space-y-1 pb-4 transition-colors duration-300 group-hover:text-white">
-            <div className="flex items-center space-x-4">
-              <div
-                className={cn(
-                  "p-2 rounded-lg transition-all",
-                  program.gradient.includes("eduBlue")
-                    ? "bg-eduBlue-100 text-eduBlue-600"
-                    : "bg-eduOrange-100 text-eduOrange-600",
-                  "group-hover:bg-white group-hover:text-[#f57920]"
-                )}
-              >
-                <program.icon className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <CardTitle className="text-xl font-bold flex items-center gap-2 group-hover:text-white">
-                  {program.title}
-                  {program.comingSoon && (
-                    <span className="text-sm font-normal px-2 py-1 bg-eduOrange-100 text-eduOrange-600 rounded">
-                      Coming Soon
-                    </span>
-                  )}
-                </CardTitle>
-              </div>
-            </div>
-          </CardHeader>
-
-          {/* Card Content */}
-          <CardContent className="space-y-4 transition-colors duration-300 group-hover:text-white">
-            <p className="text-gray-600 dark:text-gray-300 group-hover:text-white">
-              {program.description}
-            </p>
-            <ul className="space-y-2">
-              {program.features.map((feature, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-center text-gray-600 dark:text-gray-300 group-hover:text-white"
-                >
-                  <span
+        <section className="py-16 bg-white dark:bg-gray-900">
+          <div className="edu-container">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {courses.map((course: Course, index: number) => {
+                const IconComponent = getCategoryIcon(course.category);
+                const gradientClass = getGradientClass(course.category);
+                
+                return (
+                  <Card
+                    key={`course-${course.id}-${index}`}
+                    style={{
+                      borderTopLeftRadius: 0,
+                      borderTopRightRadius: "60px",
+                      borderBottomLeftRadius: "60px",
+                      borderBottomRightRadius: 0,
+                    }}
                     className={cn(
-                      "mr-2 h-1.5 w-1.5 rounded-full",
-                      program.gradient.includes("eduBlue")
-                        ? "bg-eduBlue-500"
-                        : "bg-eduOrange-500"
+                      "group transition-all duration-300 overflow-hidden border-2 shadow-md transform hover:scale-105",
+                      !course.isActive && "opacity-75 pointer-events-none",
+                      gradientClass.includes("eduBlue")
+                        ? "border-[#0e2445]"
+                        : "border-[#f57920]",
+                      "hover:bg-[#f57920]"
                     )}
-                  />
-                  {feature}
-                </li>
-              ))}
-            </ul>
+                  >
+                    {/* Top Gradient Strip */}
+                    <div className={cn("h-2 w-full bg-gradient-to-r", gradientClass)} />
 
-            {/* Button */}
-            <Button
-              className={cn(
-                "w-full mt-4 transition-colors duration-300 font-semibold",
-                "bg-[#0e2445] text-white group-hover:bg-white group-hover:text-[#f57920]"
-              )}
-              disabled={program.comingSoon}
-              asChild
-            >
-              <Link to={program.path || "#"}>
-                {program.comingSoon ? "Coming Soon" : "Learn More"}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  </div>
-</section>
+                    {/* Image */}
+                    {course.imageUrl && (
+                      <img
+                        src={course.imageUrl}
+                        alt={course.title}
+                        className="w-full h-48 object-cover"
+                      />
+                    )}
 
+                    {/* Card Header */}
+                    <CardHeader>
+                      <div className="flex items-center space-x-4">
+                        <div
+                          className={cn(
+                            "p-2 rounded-lg transition-all",
+                            gradientClass.includes("eduBlue")
+                              ? "bg-eduBlue-100 text-eduBlue-600"
+                              : "bg-eduOrange-100 text-eduOrange-600",
+                            "group-hover:bg-white group-hover:text-[#f57920]"
+                          )}
+                        >
+                          <IconComponent className="h-6 w-6" />
+                        </div>
+                        <div className="flex-1">
+                          <CardTitle className="text-xl font-bold flex items-center gap-2 group-hover:text-white">
+                            {course.title}
+                            {!course.isActive && (
+                              <span className="text-sm font-normal px-2 py-1 bg-eduOrange-100 text-eduOrange-600 rounded">
+                                Coming Soon
+                              </span>
+                            )}
+                          </CardTitle>
+                        </div>
+                      </div>
+                    </CardHeader>
 
+                    {/* Card Content */}
+                    <CardContent className="space-y-4">
+                      <p className="text-gray-600 dark:text-gray-300 group-hover:text-white">
+                        {course.description}
+                      </p>
+                      
+                      {/* Course Stats */}
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {[
+                          { icon: "📚", label: `${course.totalModules} Modules`, id: "modules" },
+                          { icon: "🎯", label: `${course.totalLessons} Lessons`, id: "lessons" },
+                          { icon: "⏱️", label: `${course.estimatedDuration} min`, id: "duration" },
+                          { icon: "📊", label: course.level, id: "level" }
+                        ].map((stat) => (
+                          <div key={`${course.id}-${stat.id}`} className="flex items-center text-gray-600 dark:text-gray-300 group-hover:text-white">
+                            <span className="mr-2">{stat.icon}</span>
+                            {stat.label}
+                          </div>
+                        ))}
+                      </div>
 
-
-
-      {/* Why Choose EduKnit Section */}
-<section className="py-20 bg-gray-100 dark:bg-gray-900">
-  <div className="edu-container">
-    <div className="max-w-5xl mx-auto text-center">
-      <h2 className="heading-2 mb-10 text-gray-900 dark:text-white">
-        Why Choose <span className="text-eduOrange-500">EduKnit</span>?
-      </h2>
-
-      {/* Boxed Features */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12">
-        {[
-          "Designed for Class 11, 12 & early college students",
-          "100% practical, mentor-led learning",
-          "Skills that align with today's job market",
-          "Learn at your own pace, with full support"
-        ].map((point, idx) => (
-          <div
-            key={idx}
-            className="rounded-3xl border border-eduBlue-500 bg-white dark:bg-gray-800 shadow-sm p-6 text-left transition-all hover:border-eduOrange-500 hover:shadow-md group"
-          >
-            <div className="flex items-start space-x-4">
-              <span className="mt-1.5 h-3 w-3 rounded-full bg-eduBlue-500 group-hover:bg-eduOrange-500 transition-colors" />
-              <p className="text-gray-700 dark:text-gray-300 group-hover:text-eduOrange-600 transition-colors font-medium">
-                {point}
-              </p>
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 mt-4">
+                        <Button
+                          className={cn(
+                            "flex-1 transition-colors duration-300 font-semibold",
+                            "bg-[#0e2445] text-white group-hover:bg-white group-hover:text-[#f57920]"
+                          )}
+                          disabled={!course.isActive || enrollmentLoading}
+                          onClick={() => handleEnrollNow(course)}
+                        >
+                          {enrollmentLoading ? "Enrolling..." : "Enroll Now"}
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "transition-colors duration-300",
+                            "border-[#0e2445] text-[#0e2445] group-hover:border-white group-hover:text-white"
+                          )}
+                          disabled={!course.isActive}
+                          onClick={() => handleLearnMore(course)}
+                        >
+                          Learn More
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
-        ))}
+        </section>
       </div>
 
-      {/* Call-to-Action */}
-      <div className="space-y-4">
-        <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-          Choose Your Program. Shape Your Future.
-        </h3>
-        <p className="text-gray-600 dark:text-gray-300 text-lg">
-          No more waiting till after college.<br />
-          With <span className="text-eduOrange-500 font-semibold">EduKnit</span>, your career starts right now.
-        </p>
-        <Button className="bg-eduOrange-500 hover:bg-eduOrange-600 text-white px-8 py-4 text-lg rounded-full shadow-md transition-all duration-300 hover:scale-105">
-          Get Started Today
-        </Button>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-      </div>
+      {/* Enrollment Success Modal */}
+      {selectedCourse && (
+        <EnrollmentSuccessModal
+          isOpen={showSuccessModal}
+          onClose={() => {
+            setShowSuccessModal(false);
+            setSelectedCourse(null);
+            setIsAlreadyEnrolled(false);
+          }}
+          courseTitle={selectedCourse.title}
+          courseSlug={selectedCourse.slug}
+          isAlreadyEnrolled={isAlreadyEnrolled}
+        />
+      )}
     </Layout>
   );
 };

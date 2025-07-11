@@ -11,11 +11,34 @@ export interface IProgrammeLesson extends Document {
     orderIndex: number;
     type: 'VIDEO' | 'TEXT' | 'QUIZ' | 'ASSIGNMENT' | 'INTERACTIVE' | 'DOCUMENT';
     content: {
+        // Legacy support - simple content types
         videoUrl?: string;
         videoDuration?: number; // in seconds
         textContent?: string;
         documentUrl?: string;
         interactiveElements?: any[];
+        
+        // Rich content support - structured JSON blocks
+        richContent?: {
+            id: string;
+            type: 'text' | 'video' | 'image' | 'code' | 'interactive' | 'embed';
+            title?: string;
+            content: string;
+            metadata?: {
+                duration?: number;
+                url?: string;
+                alt?: string;
+                language?: string;
+                width?: number;
+                height?: number;
+                autoplay?: boolean;
+                controls?: boolean;
+            };
+        }[];
+        
+        // Content format indicator
+        contentFormat?: 'HTML' | 'JSON' | 'LEGACY';
+        
         quiz?: {
             questions: {
                 id: string;
@@ -83,6 +106,7 @@ const ProgrammeLessonSchema = new Schema<IProgrammeLesson>(
             index: true
         },
         content: {
+            // Legacy support
             videoUrl: {
                 type: String,
                 trim: true
@@ -102,6 +126,37 @@ const ProgrammeLessonSchema = new Schema<IProgrammeLesson>(
             interactiveElements: [{
                 type: Schema.Types.Mixed
             }],
+            
+            // Rich content support
+            richContent: [{
+                id: {
+                    type: String,
+                    required: true
+                },
+                type: {
+                    type: String,
+                    enum: ['text', 'video', 'image', 'code', 'interactive', 'embed'],
+                    required: true
+                },
+                title: {
+                    type: String,
+                    trim: true
+                },
+                content: {
+                    type: String
+                },
+                metadata: {
+                    type: Schema.Types.Mixed
+                }
+            }],
+            
+            // Content format indicator
+            contentFormat: {
+                type: String,
+                enum: ['HTML', 'JSON', 'LEGACY'],
+                default: 'LEGACY'
+            },
+            
             quiz: {
                 questions: [{
                     id: {
@@ -135,7 +190,6 @@ const ProgrammeLessonSchema = new Schema<IProgrammeLesson>(
                 },
                 passingScore: {
                     type: Number,
-                    required: true,
                     min: 0,
                     max: 100
                 }

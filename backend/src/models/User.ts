@@ -218,7 +218,6 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Index for better query performance
-UserSchema.index({ username: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ enrollmentStatus: 1 });
 

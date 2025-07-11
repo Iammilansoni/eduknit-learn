@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContextUtils';
-import { userAPI, User } from '@/services/api';
+import { userApi as userAPI } from '@/services/userApi';
+import type { User } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';

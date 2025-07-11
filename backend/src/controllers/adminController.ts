@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Types } from 'mongoose';
 import Programme from '../models/Programme';
 import ProgrammeModule from '../models/ProgrammeModule';
 import ProgrammeLesson from '../models/ProgrammeLesson';
@@ -38,7 +39,8 @@ export const createCourse = async (req: AuthenticatedRequest, res: Response): Pr
       estimatedDuration,
       durationDays,
       certificateAwarded,
-      imageUrl
+      imageUrl,
+      slug: providedSlug // Ignore the provided slug, we'll generate our own
     } = req.body;
 
     const adminId = req.user?.id;
@@ -419,23 +421,68 @@ export const getEnrollmentStats = async (req: AuthenticatedRequest, res: Respons
  */
 export const createModule = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { programmeId, title, description, orderIndex, estimatedDuration, totalLessons, learningObjectives, isActive } = req.body;
-    if (!programmeId || !title) {
-      return validationError(res, 'programmeId and title are required');
+    console.log('Create module request body:', req.body);
+    
+    const { 
+      programmeId, 
+      title, 
+      description, 
+      orderIndex, 
+      estimatedDuration, 
+      totalLessons, 
+      learningObjectives, 
+      prerequisites,
+      isActive 
+    } = req.body;
+    
+    if (!programmeId || !title || !description) {
+      console.log('Validation failed:', { programmeId, title, description });
+      return validationError(res, 'programmeId, title, and description are required');
     }
-    const module = new ProgrammeModule({
+
+    // Validate programmeId is a valid ObjectId
+    if (!Types.ObjectId.isValid(programmeId)) {
+      return validationError(res, 'Invalid programmeId format');
+    }
+
+    // Get the next orderIndex if not provided
+    let nextOrderIndex = orderIndex;
+    if (!nextOrderIndex) {
+      const lastModule = await ProgrammeModule.findOne({ programmeId })
+        .sort({ orderIndex: -1 })
+        .select('orderIndex');
+      nextOrderIndex = lastModule ? lastModule.orderIndex + 1 : 0;
+    }
+
+    console.log('Creating module with data:', {
       programmeId,
       title,
       description,
-      orderIndex,
-      estimatedDuration,
-      totalLessons,
-      learningObjectives,
+      orderIndex: nextOrderIndex,
+      estimatedDuration: estimatedDuration || 30,
+      totalLessons: totalLessons || 1,
+      learningObjectives: learningObjectives || [],
+      prerequisites: prerequisites || [],
       isActive: isActive !== false
     });
+
+    const module = new ProgrammeModule({
+      programmeId,
+      title,
+      description: description || '',
+      orderIndex: nextOrderIndex,
+      estimatedDuration: estimatedDuration || 30, // Default 30 minutes
+      totalLessons: totalLessons || 1, // Default 1 lesson
+      learningObjectives: learningObjectives || [],
+      prerequisites: prerequisites || [],
+      isActive: isActive !== false
+    });
+    
     await module.save();
+    console.log('Module created successfully:', module._id);
     created(res, module, 'Module created successfully');
   } catch (error) {
+    console.error('Create module error:', error);
     logger.error('Create module error:', error);
     serverError(res, 'Failed to create module');
   }
@@ -544,7 +591,26 @@ export const getModuleById = async (req: AuthenticatedRequest, res: Response): P
     const { id } = req.params;
     const module = await ProgrammeModule.findById(id);
     if (!module) return notFound(res, 'Module not found');
-    success(res, module, 'Module retrieved successfully');
+    
+    // Transform the response to match frontend expectations
+    const transformedModule = {
+      id: module._id,
+      title: module.title,
+      description: module.description,
+      order: module.orderIndex || 1,
+      estimatedDuration: module.estimatedDuration || 30,
+      objectives: module.learningObjectives || [],
+      prerequisites: module.prerequisites || [],
+      isActive: module.isActive,
+      createdAt: module.createdAt,
+      updatedAt: module.updatedAt,
+      createdBy: { username: 'admin', email: 'admin@eduknit.com' },
+      lastModifiedBy: { username: 'admin', email: 'admin@eduknit.com' },
+      courseId: module.programmeId, // Map programmeId to courseId for frontend
+      courseTitle: 'Unknown Course' // Could be populated if needed
+    };
+    
+    success(res, transformedModule, 'Module retrieved successfully');
   } catch (error) {
     logger.error('Get module by ID error:', error);
     serverError(res, 'Failed to retrieve module');
@@ -566,6 +632,20 @@ export const updateModule = async (req: AuthenticatedRequest, res: Response): Pr
   }
 };
 
+export const toggleModuleStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const module = await ProgrammeModule.findById(id);
+    if (!module) return notFound(res, 'Module not found');
+    module.isActive = !module.isActive;
+    await module.save();
+    success(res, module, 'Module status updated successfully');
+  } catch (error) {
+    logger.error('Toggle module status error:', error);
+    serverError(res, 'Failed to toggle module status');
+  }
+};
+
 export const deleteModule = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -584,28 +664,89 @@ export const deleteModule = async (req: AuthenticatedRequest, res: Response): Pr
  */
 export const createLesson = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    console.log('Create lesson request body:', req.body);
+    
     const { moduleId, programmeId, title, description, orderIndex, type, content, estimatedDuration, duration, isRequired, learningObjectives, resources, isActive } = req.body;
+    
     if (!moduleId || !programmeId || !title || !type) {
+      console.log('Validation failed:', { moduleId, programmeId, title, type });
       return validationError(res, 'moduleId, programmeId, title, and type are required');
     }
-    const lesson = new ProgrammeLesson({
+
+    // Validate ObjectIds
+    if (!Types.ObjectId.isValid(moduleId)) {
+      return validationError(res, 'Invalid moduleId format');
+    }
+    if (!Types.ObjectId.isValid(programmeId)) {
+      return validationError(res, 'Invalid programmeId format');
+    }
+
+    // Get the next orderIndex if not provided
+    let nextOrderIndex = orderIndex;
+    if (!nextOrderIndex) {
+      const lastLesson = await ProgrammeLesson.findOne({ moduleId })
+        .sort({ orderIndex: -1 })
+        .select('orderIndex');
+      nextOrderIndex = lastLesson ? lastLesson.orderIndex + 1 : 0;
+    }
+
+    // Clean and validate content based on lesson type
+    let cleanedContent = {};
+    if (content) {
+      cleanedContent = { ...content };
+      
+      // For non-quiz lessons, remove quiz-related fields
+      if (type !== 'QUIZ') {
+        delete (cleanedContent as any).quiz;
+      }
+      
+      // Clean richContent array - remove items with empty content
+      if ((cleanedContent as any).richContent && Array.isArray((cleanedContent as any).richContent)) {
+        (cleanedContent as any).richContent = (cleanedContent as any).richContent.filter((item: any) => 
+          item && item.content && item.content.trim() !== ''
+        );
+      }
+      
+      // If no valid richContent, remove the field entirely
+      if (!(cleanedContent as any).richContent || (cleanedContent as any).richContent.length === 0) {
+        delete (cleanedContent as any).richContent;
+      }
+    }
+
+    console.log('Creating lesson with data:', {
       moduleId,
       programmeId,
       title,
       description,
-      orderIndex,
+      orderIndex: nextOrderIndex,
       type,
-      content,
-      estimatedDuration,
-      duration,
+      estimatedDuration: estimatedDuration || 15,
       isRequired: isRequired !== false,
-      learningObjectives,
-      resources,
+      isActive: isActive !== false,
+      content: cleanedContent
+    });
+
+    const lesson = new ProgrammeLesson({
+      moduleId,
+      programmeId,
+      title,
+      description: description || '',
+      orderIndex: nextOrderIndex,
+      type,
+      content: cleanedContent,
+      estimatedDuration: estimatedDuration || 15,
+      duration: duration || estimatedDuration || 15,
+      isRequired: isRequired !== false,
+      learningObjectives: learningObjectives || [],
+      resources: resources || [],
       isActive: isActive !== false
     });
+    
     await lesson.save();
+    console.log('Lesson created successfully:', lesson._id);
     created(res, lesson, 'Lesson created successfully');
   } catch (error) {
+    console.error('Create lesson error:', error);
     logger.error('Create lesson error:', error);
     serverError(res, 'Failed to create lesson');
   }
@@ -613,10 +754,28 @@ export const createLesson = async (req: AuthenticatedRequest, res: Response): Pr
 
 export const getLessonsByModule = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { moduleId } = req.query;
+    const { moduleId, page = 1, limit = 10 } = req.query;
     if (!moduleId) return validationError(res, 'moduleId is required');
-    const lessons = await ProgrammeLesson.find({ moduleId }).sort({ orderIndex: 1 });
-    success(res, lessons, 'Lessons retrieved successfully');
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Get paginated lessons
+    const lessons = await ProgrammeLesson.find({ moduleId })
+      .sort({ orderIndex: 1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const total = await ProgrammeLesson.countDocuments({ moduleId });
+
+    success(res, {
+      lessons,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    }, 'Lessons retrieved successfully');
   } catch (error) {
     logger.error('Get lessons error:', error);
     serverError(res, 'Failed to retrieve lessons');
@@ -688,25 +847,25 @@ export const getDashboardStats = async (req: AuthenticatedRequest, res: Response
       Enrollment.countDocuments({ status: 'ACTIVE' }),
       Enrollment.countDocuments({ status: 'COMPLETED' }),
       Enrollment.find()
-        .populate('userId', 'firstName lastName email')
+        .populate('studentId', 'firstName lastName email')
         .populate('programmeId', 'title')
-        .sort({ enrolledAt: -1 })
+        .sort({ enrollmentDate: -1 })
         .limit(10)
     ]);
 
     // Calculate average progress
-    const enrollmentsWithProgress = await Enrollment.find({ progress: { $exists: true, $ne: null } });
+    const enrollmentsWithProgress = await Enrollment.find({ 'progress.totalProgress': { $exists: true, $ne: null } });
     const averageProgress = enrollmentsWithProgress.length > 0 
-      ? enrollmentsWithProgress.reduce((sum, enrollment) => sum + (enrollment.progress || 0), 0) / enrollmentsWithProgress.length
+      ? enrollmentsWithProgress.reduce((sum, enrollment) => sum + (enrollment.progress?.totalProgress || 0), 0) / enrollmentsWithProgress.length
       : 0;
 
     // Format recent activity
     const recentActivity = recentEnrollments.map(enrollment => ({
-      id: enrollment._id.toString(),
+      id: (enrollment._id as Types.ObjectId).toString(),
       type: 'enrollment',
-      description: `${(enrollment.userId as any)?.firstName || 'User'} ${(enrollment.userId as any)?.lastName || ''} enrolled in ${(enrollment.programmeId as any)?.title || 'course'}`,
-      timestamp: enrollment.enrolledAt.toISOString(),
-      user: `${(enrollment.userId as any)?.firstName || 'User'} ${(enrollment.userId as any)?.lastName || ''}`.trim()
+      description: `${(enrollment.studentId as any)?.firstName || 'User'} ${(enrollment.studentId as any)?.lastName || ''} enrolled in ${(enrollment.programmeId as any)?.title || 'course'}`,
+      timestamp: enrollment.enrollmentDate.toISOString(),
+      user: `${(enrollment.studentId as any)?.firstName || 'User'} ${(enrollment.studentId as any)?.lastName || ''}`.trim()
     }));
 
     const stats = {
@@ -726,5 +885,124 @@ export const getDashboardStats = async (req: AuthenticatedRequest, res: Response
   } catch (error) {
     logger.error('Get dashboard stats error:', error);
     serverError(res, 'Failed to fetch dashboard statistics');
+  }
+};
+
+/**
+ * Get comprehensive admin analytics data
+ * GET /api/admin/analytics
+ */
+export const getAdminAnalytics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    // Get all the counts in parallel for better performance
+    const [
+      totalUsers,
+      totalCourses,
+      totalEnrollments,
+      activeEnrollments,
+      completedEnrollments
+    ] = await Promise.all([
+      User.countDocuments(),
+      Programme.countDocuments(),
+      Enrollment.countDocuments(),
+      Enrollment.countDocuments({ status: 'ACTIVE' }),
+      Enrollment.countDocuments({ status: 'COMPLETED' })
+    ]);
+
+    // Calculate average progress
+    const enrollmentsWithProgress = await Enrollment.find({ 'progress.totalProgress': { $exists: true, $ne: null } });
+    const averageProgress = enrollmentsWithProgress.length > 0 
+      ? enrollmentsWithProgress.reduce((sum, enrollment) => sum + (enrollment.progress?.totalProgress || 0), 0) / enrollmentsWithProgress.length
+      : 0;
+
+    // Calculate monthly growth (simplified - using last 30 days vs previous 30 days)
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    const [recentUsers, previousUsers, recentEnrollments, previousEnrollments] = await Promise.all([
+      User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+      User.countDocuments({ createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo } }),
+      Enrollment.countDocuments({ enrollmentDate: { $gte: thirtyDaysAgo } }),
+      Enrollment.countDocuments({ enrollmentDate: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo } })
+    ]);
+
+    const userGrowth = previousUsers > 0 ? ((recentUsers - previousUsers) / previousUsers) * 100 : 0;
+    const enrollmentGrowth = previousEnrollments > 0 ? ((recentEnrollments - previousEnrollments) / previousEnrollments) * 100 : 0;
+
+    // Get top courses by enrollment
+    const topCourses = await Enrollment.aggregate([
+      {
+        $group: {
+          _id: '$programmeId',
+          enrollments: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } }
+        }
+      },
+      {
+        $lookup: {
+          from: 'programmes',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'course'
+        }
+      },
+      {
+        $unwind: '$course'
+      },
+      {
+        $project: {
+          id: '$_id',
+          title: '$course.title',
+          enrollments: '$enrollments',
+          completionRate: { $multiply: [{ $divide: ['$completed', '$enrollments'] }, 100] }
+        }
+      },
+      {
+        $sort: { enrollments: -1 }
+      },
+      {
+        $limit: 5
+      }
+    ]);
+
+    // Get recent activity
+    const recentActivity = await Enrollment.find()
+      .populate('studentId', 'firstName lastName email')
+      .populate('programmeId', 'title')
+      .sort({ enrollmentDate: -1 })
+      .limit(10)
+      .then(enrollments => enrollments.map(enrollment => ({
+        id: (enrollment._id as Types.ObjectId).toString(),
+        type: 'enrollment',
+        description: `${(enrollment.studentId as any)?.firstName || 'User'} ${(enrollment.studentId as any)?.lastName || ''} enrolled in ${(enrollment.programmeId as any)?.title || 'course'}`,
+        timestamp: enrollment.enrollmentDate.toISOString()
+      })));
+
+    const analyticsData = {
+      totalUsers,
+      totalCourses,
+      totalEnrollments,
+      activeEnrollments,
+      completedEnrollments,
+      averageProgress: Math.round(averageProgress * 10) / 10,
+      monthlyGrowth: {
+        users: Math.round(userGrowth * 10) / 10,
+        enrollments: Math.round(enrollmentGrowth * 10) / 10,
+        completions: 0 // Could be calculated if needed
+      },
+      topCourses: topCourses.map(course => ({
+        id: course.id.toString(),
+        title: course.title,
+        enrollments: course.enrollments,
+        completionRate: Math.round(course.completionRate * 10) / 10
+      })),
+      recentActivity
+    };
+
+    success(res, analyticsData, 'Admin analytics retrieved successfully');
+  } catch (error) {
+    logger.error('Get admin analytics error:', error);
+    serverError(res, 'Failed to fetch admin analytics');
   }
 };

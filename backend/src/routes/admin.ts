@@ -12,6 +12,7 @@ import {
   getOverallCourseStats,
   getEnrollmentStats,
   getDashboardStats,
+  getAdminAnalytics,
   createModule,
   getModulesByProgramme,
   getModuleById,
@@ -21,7 +22,8 @@ import {
   getLessonsByModule,
   getLessonById,
   updateLesson,
-  deleteLesson
+  deleteLesson,
+  toggleModuleStatus
 } from '../controllers/adminController';
 import { body, param, query } from 'express-validator';
 import { handleValidationErrors } from '../middleware/validation';
@@ -164,6 +166,7 @@ router.get('/modules', getModulesByProgramme); // ?programmeId=...
 router.get('/modules/:id', getModuleById);
 router.put('/modules/:id', updateModule);
 router.delete('/modules/:id', deleteModule);
+router.patch('/modules/:id/toggle-status', toggleModuleStatus);
 
 /**
  * LESSON CRUD (Admin)
@@ -180,5 +183,12 @@ router.delete('/lessons/:id', deleteLesson);
  * @access  Admin only
  */
 router.get('/enrollments/stats', getEnrollmentStats);
+
+/**
+ * @route   GET /api/admin/analytics
+ * @desc    Get comprehensive admin analytics data
+ * @access  Admin only
+ */
+router.get('/analytics', getAdminAnalytics);
 
 export default router; 

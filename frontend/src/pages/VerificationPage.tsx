@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
-import { userAPI } from '@/services/api';
+import { userApi as userAPI } from '@/services/userApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
 
 const VerificationPage = () => {

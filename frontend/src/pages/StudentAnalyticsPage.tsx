@@ -1,5 +1,6 @@
 import React from 'react';
 import { useStudentAnalytics } from '@/hooks/use-student-profile';
+import { StudentAnalytics } from '@/services/studentApi';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -63,6 +64,16 @@ interface AnalyticsData {
 const StudentAnalyticsPage = () => {
   const { data: analyticsData, isLoading, error } = useStudentAnalytics();
 
+  // Debug: Log the analytics data
+  console.log('Analytics data received:', analyticsData);
+  console.log('Analytics data structure:', {
+    rawData: analyticsData,
+    overview: analyticsData?.overview,
+    gamification: analyticsData?.gamification,
+    progressOverTime: analyticsData?.progressOverTime,
+    categoryProgress: analyticsData?.categoryProgress,
+  });
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -88,7 +99,7 @@ const StudentAnalyticsPage = () => {
     );
   }
 
-  const analytics = (analyticsData?.data as AnalyticsData) || ({} as AnalyticsData);
+  const analytics = analyticsData || ({} as StudentAnalytics);
   const overview = analytics.overview || {
     totalEnrollments: 0,
     completedCourses: 0,

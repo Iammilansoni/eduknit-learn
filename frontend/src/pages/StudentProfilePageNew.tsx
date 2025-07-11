@@ -64,9 +64,9 @@ const StudentProfilePage = () => {
     );
   }
 
-  const profile = profileData?.data?.profile;
-  const profileUser = profileData?.data?.user;
-  const completeness = profileData?.data?.completeness || 0;
+  const profile = profileData?.profile;
+  const profileUser = profileData?.user;
+  const completeness = profileData?.completeness || 0;
   const enrolledPrograms = enrolledProgramsData?.data?.enrolledPrograms || [];
 
   // Calculate enrollment statistics

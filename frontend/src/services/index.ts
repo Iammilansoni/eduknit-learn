@@ -1,6 +1,16 @@
 // Main API instance
 export { default as api } from './api';
-export type { ApiResponse, User } from './api';
+export type { 
+  ApiResponse, 
+  User, 
+  UserCoursesResponse, 
+  UserLearningStatsResponse,
+  CourseProgressResponse,
+  LessonContentResponse,
+  QuizData,
+  QuizQuestion,
+  QuizAnswer
+} from './api';
 
 // Authentication API
 export { authApi, default as authApiDefault } from './authApi';
@@ -43,7 +53,6 @@ export type {
   Module,
   Lesson,
   LessonDetails,
-  CourseDetails,
   CourseFilters,
 } from './courseContentApi';
 
@@ -65,8 +74,9 @@ export { integrationApi, default as integrationApiDefault } from './integrationA
 export type {
   DiscordUpdate,
   DiscordServerInfo,
-  DiscordNotificationRequest,
-  DiscordNotificationResponse,
+  Integration,
+  CreateIntegrationData,
+  TestNotificationData,
 } from './integrationApi';
 
 // Privacy API

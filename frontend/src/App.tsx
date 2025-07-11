@@ -14,6 +14,7 @@ import OverviewPage from "./pages/OverviewPage";
 import FeaturesPage from "./pages/FeaturesPage";
 import TestimonialsPage from "./pages/TestimonialsPage";
 import ProgramsPage from "./pages/ProgramsPage";
+import ProgramDetailPage from "./pages/ProgramDetailPage";
 import CourseDetailPage from "./pages/courses/CourseDetailPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -46,7 +47,7 @@ import StudentDashboardPage from "./pages/StudentDashboardPage";
 import StudentProfilePage from "./pages/StudentProfilePageNew";
 import StudentAnalyticsPage from "./pages/StudentAnalyticsPage";
 import MyCoursesPage from "./pages/courses/MyCoursesPage";
-import LessonViewer from "./components/course/EnhancedLessonViewer";
+import LessonPage from "./pages/lessons/LessonPage";
 import IntegrationSettingsPage from "./pages/IntegrationSettingsPage";
 import VisitorPage from "./pages/VisitorPage";
 import NotAuthorizedPage from "./pages/NotAuthorizedPage";
@@ -83,6 +84,7 @@ const App = () => (
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/testimonials" element={<TestimonialsPage />} />
             <Route path="/programs" element={<ProgramsPage />} />
+            <Route path="/programs/:slug" element={<ProgramDetailPage />} />
             <Route path="/courses/:courseId" element={<CourseDetailPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/support" element={<SupportPage />} />
@@ -216,7 +218,15 @@ const App = () => (
               path="/student-dashboard/lessons/:lessonId" 
               element={
                 <ProtectedRoute allowedRoles={['student', 'user']}>
-                  <LessonViewer />
+                  <LessonPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/lessons/:lessonId" 
+              element={
+                <ProtectedRoute allowedRoles={['student', 'user']}>
+                  <LessonPage />
                 </ProtectedRoute>
               } 
             />

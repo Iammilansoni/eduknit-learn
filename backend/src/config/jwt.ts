@@ -53,49 +53,45 @@ export class JWTUtils {
   /**
    * Generate access token
    */
-  static generateAccessToken(payload: AccessTokenPayload): string {
+  static generateAccessToken(payload: AccessTokenPayload | any): string {
     // Create clean payload without any existing JWT properties
     const cleanPayload = {
       user: {
-        id: payload.user.id,
-        role: payload.user.role
+        id: typeof payload.user === 'object' ? payload.user.id : payload.user,
+        role: typeof payload.user === 'object' ? payload.user.role : payload.role || 'user'
       }
     };
     
-    return jwt.sign(
-      cleanPayload,
-      JWT_CONFIG.ACCESS_TOKEN.SECRET,
-      {
-        expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN as any,
-        algorithm: 'HS256',
-        issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
-        audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
-      }
-    );
+    const options: SignOptions = {
+      expiresIn: JWT_CONFIG.ACCESS_TOKEN.EXPIRES_IN as any,
+      algorithm: JWT_CONFIG.ACCESS_TOKEN.ALGORITHM,
+      issuer: JWT_CONFIG.ACCESS_TOKEN.ISSUER,
+      audience: JWT_CONFIG.ACCESS_TOKEN.AUDIENCE,
+    };
+    
+    return jwt.sign(cleanPayload, JWT_CONFIG.ACCESS_TOKEN.SECRET, options);
   }
 
   /**
    * Generate refresh token
    */
-  static generateRefreshToken(payload: RefreshTokenPayload): string {
+  static generateRefreshToken(payload: RefreshTokenPayload | any): string {
     // Create clean payload without any existing JWT properties
     const cleanPayload = {
       user: {
-        id: payload.user.id,
-        role: payload.user.role
+        id: typeof payload.user === 'object' ? payload.user.id : payload.user,
+        role: typeof payload.user === 'object' ? payload.user.role : payload.role || 'user'
       }
     };
     
-    return jwt.sign(
-      cleanPayload,
-      JWT_CONFIG.REFRESH_TOKEN.SECRET,
-      {
-        expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN as any,
-        algorithm: 'HS256',
-        issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
-        audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
-      }
-    );
+    const options: SignOptions = {
+      expiresIn: JWT_CONFIG.REFRESH_TOKEN.EXPIRES_IN as any,
+      algorithm: JWT_CONFIG.REFRESH_TOKEN.ALGORITHM,
+      issuer: JWT_CONFIG.REFRESH_TOKEN.ISSUER,
+      audience: JWT_CONFIG.REFRESH_TOKEN.AUDIENCE,
+    };
+    
+    return jwt.sign(cleanPayload, JWT_CONFIG.REFRESH_TOKEN.SECRET, options);
   }
 
   /**

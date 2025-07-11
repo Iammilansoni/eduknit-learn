@@ -13,7 +13,7 @@ import {
   AlertCircle,
   Plus
 } from 'lucide-react';
-import { studentAPI } from '@/services/api';
+import { studentApi as studentAPI } from '@/services/studentApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
 
 interface CalendarEvent {

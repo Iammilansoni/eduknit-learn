@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { progressAPI, userAPI } from '../services/api';
+import { progressApi as progressAPI } from '../services/progressApi';
+import { userApi as userAPI } from '../services/userApi';
 
 const ProgressTestPage: React.FC = () => {
   const [loading, setLoading] = useState<string | null>(null);

@@ -315,8 +315,85 @@ export const getLessonContent = async (req: Request, res: Response) => {
       };
     }
 
+    // Handle different content formats and ensure rich content is properly structured
+    let processedContent = lesson.content;
+    
+    // If lesson has rich content (JSON blocks), use that
+    if (lesson.content?.richContent && lesson.content.richContent.length > 0) {
+      processedContent = {
+        ...lesson.content,
+        contentFormat: lesson.content.contentFormat || 'JSON',
+        richContent: lesson.content.richContent.map((item: any, index: number) => ({
+          id: item.id || `content-${index}`,
+          type: item.type || 'text',
+          title: item.title,
+          content: item.content,
+          metadata: item.metadata || {}
+        }))
+      };
+    } else if (lesson.content?.textContent) {
+      // Try to detect if textContent is JSON or HTML
+      try {
+        const parsed = JSON.parse(lesson.content.textContent);
+        if (Array.isArray(parsed)) {
+          // It's structured JSON content
+          processedContent = {
+            ...lesson.content,
+            contentFormat: 'JSON',
+            richContent: parsed.map((item: any, index: number) => ({
+              id: item.id || `content-${index}`,
+              type: item.type || 'text',
+              title: item.title,
+              content: item.content,
+              metadata: item.metadata || {}
+            }))
+          };
+        } else {
+          // It's HTML content
+          processedContent = {
+            ...lesson.content,
+            contentFormat: 'HTML',
+            richContent: [{
+              id: 'main-content',
+              type: 'text',
+              title: lesson.title,
+              content: lesson.content.textContent,
+              metadata: {}
+            }]
+          };
+        }
+      } catch {
+        // It's HTML content
+        processedContent = {
+          ...lesson.content,
+          contentFormat: 'HTML',
+          richContent: [{
+            id: 'main-content',
+            type: 'text',
+            title: lesson.title,
+            content: lesson.content.textContent,
+            metadata: {}
+          }]
+        };
+      }
+    } else {
+      // Legacy content format - create a basic text content
+      processedContent = {
+        ...lesson.content,
+        contentFormat: 'LEGACY',
+        richContent: [{
+          id: 'main-content',
+          type: 'text',
+          title: lesson.title,
+          content: lesson.description || 'Content coming soon...',
+          metadata: {}
+        }]
+      };
+    }
+
     const lessonData = {
       ...lesson,
+      content: processedContent,
       progress: lessonProgress ? {
         completed: lessonProgress.completedAt,
         timeSpent: lessonProgress.timeSpent,
@@ -802,6 +879,56 @@ export const getCourseProgress = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get course progress'
+    });
+  }
+};
+
+/**
+ * Get all active courses
+ */
+export const getAllCourses = async (req: Request, res: Response) => {
+  try {
+    const courses = await Programme.find({})
+      .select('_id title slug description category instructor level price currency imageUrl totalModules totalLessons estimatedDuration skills prerequisites overview isActive')
+      .sort({ title: 1 });
+
+    res.json({
+      success: true,
+      data: courses,
+      total: courses.length
+    });
+  } catch (error) {
+    console.error('Error getting all courses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get courses'
+    });
+  }
+};
+
+/**
+ * Get course slug to ID mapping
+ */
+export const getCourseMapping = async (req: Request, res: Response) => {
+  try {
+    const courses = await Programme.find({})
+      .select('_id slug isActive')
+      .sort({ title: 1 });
+
+    const mapping: Record<string, string> = {};
+    courses.forEach(course => {
+      mapping[course.slug] = (course._id as Types.ObjectId).toString();
+    });
+
+    res.json({
+      success: true,
+      data: mapping
+    });
+  } catch (error) {
+    console.error('Error getting course mapping:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get course mapping'
     });
   }
 };

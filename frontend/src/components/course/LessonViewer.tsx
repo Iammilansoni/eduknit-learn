@@ -23,7 +23,7 @@ import {
   ArrowLeft,
   ArrowRight
 } from 'lucide-react';
-import { courseContentAPI } from '@/services/api';
+import { courseContentApi as courseContentAPI } from '@/services/courseContentApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
 
 interface QuizQuestion {

@@ -1,11 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { studentAPI } from '@/services/api';
+import { studentApi as studentAPI } from '@/services/studentApi';
 import { useToast } from '@/hooks/use-toast'; // Still needed for useUpdateStudentProfile
 
 export function useStudentProfile() {
   return useQuery({
     queryKey: ['student-profile'],
-    queryFn: () => studentAPI.getStudentProfile(),
+    queryFn: () => studentAPI.getProfile(),
   });
 }
 
@@ -14,8 +14,8 @@ export function useUpdateStudentProfile() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (data: Parameters<typeof studentAPI.updateStudentProfile>[0]) =>
-      studentAPI.updateStudentProfile(data),
+    mutationFn: (data: Parameters<typeof studentAPI.updateProfile>[0]) =>
+      studentAPI.updateProfile(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['student-profile'] });
       toast({
@@ -70,7 +70,19 @@ export function useStudentEnrollments(params?: {
 }) {
   return useQuery({
     queryKey: ['student-enrollments', params],
-    queryFn: () => studentAPI.getEnrollments(params),
+    queryFn: async () => {
+      const response = await studentAPI.getEnrollments();
+      // The backend returns: { success: true, data: { enrollments: [...], pagination: {...} } }
+      if (response && response.data && response.data.enrollments) {
+        return response.data;
+      }
+      // Fallback for different response structures
+      if (Array.isArray(response)) return { enrollments: response, pagination: {} };
+      if (response && response.data && Array.isArray(response.data)) {
+        return { enrollments: response.data, pagination: {} };
+      }
+      return { enrollments: [], pagination: {} };
+    },
   });
 }
 
@@ -110,7 +122,7 @@ export function useUpdateLearningActivity() {
 export function useStudentAnalytics() {
   return useQuery({
     queryKey: ['student-analytics'],
-    queryFn: () => studentAPI.getStudentAnalytics(),
+    queryFn: () => studentAPI.getAnalytics(),
   });
 }
 
@@ -121,7 +133,7 @@ export function useEnrolledPrograms(params?: {
 }) {
   return useQuery({
     queryKey: ['enrolled-programs', params],
-    queryFn: () => studentAPI.getEnrolledPrograms(params),
+    queryFn: () => studentAPI.getEnrolledPrograms(),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

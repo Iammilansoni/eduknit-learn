@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContextUtils';
-import { userAPI, User } from '@/services/api';
+import { userApi as userAPI } from '@/services/userApi';
+import type { User } from '@/services/api';
 import { useToast } from '@/hooks/use-toast';
 import Layout from '@/components/layout/Layout';
 import AdminNavigation from '@/components/admin/AdminNavigation';
@@ -102,8 +103,8 @@ const AdminUserManagement = () => {
   const fetchStats = useCallback(async () => {
     try {
       const response = await userAPI.getUserStats();
-      if (response.success && response.data?.stats) {
-        setStats(response.data.stats);
+      if (response.success && response.stats) {
+        setStats(response.stats);
       }
     } catch (error: unknown) {
       console.error('Failed to fetch stats:', error);

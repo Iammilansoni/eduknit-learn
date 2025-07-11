@@ -1,7 +1,8 @@
-const API_BASE_URL = '/api';
-
 // Use the existing api instance from the main api.ts file
-import { api } from './api';
+import api from './api';
+
+// Import the LessonContent type from the component
+import { LessonContent } from '@/components/lesson/LessonContentRenderer';
 
 // Types for Course Content API responses
 export interface Course {
@@ -60,13 +61,9 @@ export interface Lesson {
   programmeId: string;
   orderIndex: number;
   estimatedDuration: number;
-  content: any;
+  content: LessonContent[];
   learningObjectives: string[];
-  resources: {
-    type: string;
-    title: string;
-    url: string;
-  }[];
+  resources: LessonResource[];
   isRequired: boolean;
   isActive: boolean;
   progress?: {
@@ -88,13 +85,13 @@ export interface LessonDetails {
     description: string;
     type: string;
     estimatedDuration: number;
-    content: any;
+    content: LessonContent[];
     learningObjectives: string[];
-    resources: any[];
+    resources: LessonResource[];
     isRequired: boolean;
     orderIndex: number;
-    module: any;
-    programme: any;
+    module: ModuleInfo;
+    programme: ProgrammeInfo;
   };
   navigation: {
     previousLesson: { _id: string; title: string; orderIndex: number } | null;
@@ -162,6 +159,78 @@ export interface CourseFilters {
   search?: string;
 }
 
+// Additional interfaces for better type safety
+export interface LessonResource {
+  type: string;
+  title: string;
+  url: string;
+  description?: string;
+}
+
+export interface ModuleInfo {
+  _id: string;
+  title: string;
+  description: string;
+  orderIndex: number;
+  programmeId: string;
+}
+
+export interface ProgrammeInfo {
+  _id: string;
+  title: string;
+  description: string;
+  category: string;
+  level: string;
+}
+
+export interface LessonProgressResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    progressPercentage: number;
+    timeSpent: number;
+    status: string;
+    completedAt?: string;
+  };
+}
+
+export interface QuizSubmissionResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    score: number;
+    totalQuestions: number;
+    correctAnswers: number;
+    timeSpent: number;
+    passed: boolean;
+  };
+}
+
+export interface NextModuleResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    moduleId: string;
+    moduleTitle: string;
+    orderIndex: number;
+    isNext: boolean;
+  };
+}
+
+export interface LessonContentResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    lessonId: string;
+    content: LessonContent[];
+    metadata: {
+      totalDuration: number;
+      difficulty: string;
+      tags: string[];
+    };
+  };
+}
+
 // Course Content API functions
 export const courseContentApi = {
   // Get all courses with optional filtering
@@ -196,7 +265,7 @@ export const courseContentApi = {
   ): Promise<Module[]> {
     try {
       const params = studentId ? { studentId } : {};
-      const response = await api.get(`/course-content/modules/${programmeId}`, { params });
+      const response = await api.get(`/courses/modules/${programmeId}`, { params });
       return response.data.data;
     } catch (error) {
       console.error('Error fetching modules:', error);
@@ -211,7 +280,7 @@ export const courseContentApi = {
   ): Promise<Lesson[]> {
     try {
       const params = studentId ? { studentId } : {};
-      const response = await api.get(`/course-content/lessons/${moduleId}`, { params });
+      const response = await api.get(`/courses/lessons/${moduleId}`, { params });
       return response.data.data;
     } catch (error) {
       console.error('Error fetching lessons:', error);
@@ -226,7 +295,7 @@ export const courseContentApi = {
   ): Promise<LessonDetails> {
     try {
       const params = studentId ? { studentId } : {};
-      const response = await api.get(`/course-content/lesson/${lessonId}`, { params });
+      const response = await api.get(`/courses/lesson/${lessonId}`, { params });
       return response.data.data;
     } catch (error) {
       console.error('Error fetching lesson details:', error);
@@ -238,10 +307,10 @@ export const courseContentApi = {
   async getLessonContent(
     lessonId: string, 
     studentId?: string
-  ): Promise<any> {
+  ): Promise<LessonContentResponse> {
     try {
       const params = studentId ? { studentId } : {};
-      const response = await api.get(`/course-content/lesson-content/${lessonId}`, { params });
+      const response = await api.get(`/courses/lesson-content/${lessonId}`, { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching lesson content:', error);
@@ -259,9 +328,9 @@ export const courseContentApi = {
       notes?: string;
       bookmarked?: boolean;
     }
-  ): Promise<any> {
+  ): Promise<LessonProgressResponse> {
     try {
-      const response = await api.put(`/course-content/lesson-progress/${lessonId}`, data);
+      const response = await api.put(`/courses/lesson-progress/${lessonId}`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating lesson progress:', error);
@@ -280,9 +349,9 @@ export const courseContentApi = {
       }>;
       timeSpent: number;
     }
-  ): Promise<any> {
+  ): Promise<QuizSubmissionResponse> {
     try {
-      const response = await api.post(`/course-content/quiz/${lessonId}`, data);
+      const response = await api.post(`/courses/quiz/${lessonId}`, data);
       return response.data;
     } catch (error) {
       console.error('Error submitting quiz:', error);
@@ -294,10 +363,11 @@ export const courseContentApi = {
   async getNextModule(
     programmeId: string, 
     studentId?: string
-  ): Promise<any> {
+  ): Promise<NextModuleResponse> {
     try {
-      const params = studentId ? { studentId } : {};
-      const response = await api.get(`/course-content/next-module/${programmeId}`, { params });
+      console.log('🔍 DEBUG: courseContentApi.getNextModule - URL:', `/courses/next-module/${programmeId}`, 'Params:', { studentId });
+      const response = await api.get(`/courses/next-module/${programmeId}`, { params: { studentId } });
+      console.log('🔍 DEBUG: courseContentApi.getNextModule - Response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching next module:', error);
@@ -311,9 +381,10 @@ export const courseContentApi = {
     studentId?: string
   ): Promise<CourseProgressResponse> {
     try {
-      const params = studentId ? { studentId } : {};
-      const response = await api.get(`/course-content/progress/${programmeId}`, { params });
-      return response.data.data;
+      console.log('🔍 DEBUG: courseContentApi.getCourseProgress - URL:', `/courses/progress/${programmeId}`, 'Params:', { studentId });
+      const response = await api.get(`/courses/progress/${programmeId}`, { params: { studentId } });
+      console.log('🔍 DEBUG: courseContentApi.getCourseProgress - Response:', response.data);
+      return response.data;
     } catch (error) {
       console.error('Error fetching course progress:', error);
       throw error;

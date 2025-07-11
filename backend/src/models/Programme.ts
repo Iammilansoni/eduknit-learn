@@ -209,15 +209,27 @@ ProgrammeSchema.statics.searchProgrammes = function(query: string, filters: any 
 };
 
 // Pre-save middleware to generate slug from title
-ProgrammeSchema.pre('save', function(next) {
+ProgrammeSchema.pre('save', async function(next) {
     if (this.isModified('title') || this.isNew) {
-        // Generate slug from title
-        this.slug = this.title
+        // Generate base slug from title
+        let baseSlug = this.title
             .toLowerCase()
             .replace(/[^a-z0-9\s-]/g, '') // Remove special characters except spaces and hyphens
             .replace(/\s+/g, '-') // Replace spaces with hyphens
             .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
-            .trim();
+            .trim()
+            .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
+        
+        // Ensure slug uniqueness
+        let slug = baseSlug;
+        let counter = 1;
+        
+        while (await (this.constructor as any).findOne({ slug, _id: { $ne: this._id } })) {
+            slug = `${baseSlug}-${counter}`;
+            counter++;
+        }
+        
+        this.slug = slug;
     }
     next();
 });

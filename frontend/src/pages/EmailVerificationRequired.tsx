@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Mail, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContextUtils';
 import { useToast } from '@/hooks/use-toast';
-import { authAPI } from '@/services/api';
+import { authApi as authAPI } from '@/services/authApi';
 
 const EmailVerificationRequired = () => {
   const [isResending, setIsResending] = useState(false);

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from '@/hooks/use-toast';
-import { progressApi } from '@/services/api';
+import { progressApi } from '@/services/progressApi';
 import { useProgressTracking } from '@/hooks/useProgressTracking';
 
 interface LessonProgress {

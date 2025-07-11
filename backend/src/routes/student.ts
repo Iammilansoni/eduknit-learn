@@ -12,6 +12,7 @@ import {
   getEnrolledPrograms,
   updateLearningActivity,
   getStudentAnalytics,
+  getCourseAnalytics,
   upload,
   enrollInProgram,
   markLessonCompleted,
@@ -154,6 +155,13 @@ router.put('/lesson/progress', updateLessonProgress);
  * @access  Student only
  */
 router.get('/analytics', requireStudent, getStudentAnalytics);
+
+/**
+ * @route   GET /api/student/analytics/course/:courseId
+ * @desc    Get detailed analytics for a specific course
+ * @access  Student only
+ */
+router.get('/analytics/course/:courseId', requireStudent, getCourseAnalytics);
 
 /**
  * @route   GET /api/student/test

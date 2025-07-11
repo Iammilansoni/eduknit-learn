@@ -18,7 +18,7 @@ import StreakCounter from '@/components/dashboard/analytics/StreakCounter';
 import PointsAndLevel from '@/components/dashboard/analytics/PointsAndLevel';
 import CategoryPerformanceChart from '@/components/dashboard/analytics/CategoryPerformanceChart';
 import useStudentDashboard from '@/hooks/useStudentDashboard';
-import useStudentEnrollments from '@/hooks/useStudentEnrollments';
+import { useStudentEnrollments } from '@/hooks/use-student-profile';
 import useStudentProfile from '@/hooks/useStudentProfile';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -35,11 +35,7 @@ const StudentDashboardPage = () => {
     refetch: refetchDashboard 
   } = useStudentDashboard();
   
-  const { 
-    enrollments, 
-    loading: enrollmentsLoading, 
-    error: enrollmentsError 
-  } = useStudentEnrollments();
+  const { data: enrollmentsData = { enrollments: [] }, isLoading: enrollmentsLoading, error: enrollmentsError } = useStudentEnrollments();
   
   const { 
     profile, 
@@ -49,6 +45,8 @@ const StudentDashboardPage = () => {
 
   // Transform enrollments data for CourseList component
   const enrolledCourses = React.useMemo(() => {
+    // Extract enrollments array from the data object
+    const enrollments = enrollmentsData?.enrollments || [];
     console.log('enrollments:', enrollments, 'type:', typeof enrollments, 'isArray:', Array.isArray(enrollments));
     
     // More robust check for enrollments
@@ -81,7 +79,7 @@ const StudentDashboardPage = () => {
         completionDate: enrollment.status === 'COMPLETED' ? enrollment.progress?.lastActivityDate : null
       };
     });
-  }, [enrollments]);
+  }, [enrollmentsData]);
 
   // Mock data for features not yet implemented in backend
   const upcomingDeadlines = [

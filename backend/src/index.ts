@@ -19,11 +19,14 @@ import progressRoutes from './routes/progress';
 import healthRoutes from './routes/health';
 import adminRoutes from './routes/admin';
 import courseContentRoutes from './routes/courseContent';
+import courseRoutes from './routes/course';
+import lessonRoutes from './routes/lessons';
 import integrationRoutes from './routes/integrations';
 import analyticsRoutes from './routes/analytics';
 import swaggerUi from 'swagger-ui-express';
 import { specs } from './config/swagger';
 import ScheduledJobsService from './services/scheduledJobsService';
+import AnalyticsBackgroundService from './services/analyticsBackgroundService';
 
 dotenv.config();
 
@@ -34,6 +37,11 @@ connectDB();
 
 // Initialize scheduled jobs for automated tasks
 ScheduledJobsService.initialize();
+
+// Initialize analytics background service
+AnalyticsBackgroundService.initialize().catch(error => {
+  logger.error('Failed to initialize analytics background service:', error);
+});
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -110,6 +118,8 @@ app.use('/api/progress', progressRoutes);
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/courses', courseContentRoutes);
+app.use('/api/course', courseRoutes);
+app.use('/api/lessons', lessonRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

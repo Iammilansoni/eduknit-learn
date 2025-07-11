@@ -246,8 +246,7 @@ const StudentProfileSchema = new Schema<IStudentProfile>(
         academicInfo: {
             educationLevel: {
                 type: String,
-                enum: ['HIGH_SCHOOL', 'UNDERGRADUATE', 'GRADUATE', 'POSTGRADUATE', 'OTHER'],
-                index: true
+                enum: ['HIGH_SCHOOL', 'UNDERGRADUATE', 'GRADUATE', 'POSTGRADUATE', 'OTHER']
             },
             institution: {
                 type: String,

@@ -34,12 +34,13 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import RichContentEditor from '@/components/admin/RichContentEditor';
 
 // Lesson form schema
 const lessonSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
   description: z.string().min(1, 'Description is required').max(1000, 'Description must be less than 1000 characters'),
-  content: z.string().min(1, 'Content is required'),
+  content: z.string().optional(), // Make content optional when rich content is used
   order: z.number().min(1, 'Order must be at least 1'),
   estimatedDuration: z.number().min(1, 'Estimated duration must be at least 1 minute'),
   lessonType: z.enum(['TEXT', 'VIDEO', 'QUIZ', 'INTERACTIVE']).default('TEXT'),
@@ -81,6 +82,14 @@ interface Module {
   courseTitle?: string;
 }
 
+interface ContentBlock {
+  id: string;
+  type: 'text' | 'video' | 'image' | 'code' | 'interactive' | 'embed';
+  title?: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
 const AdminLessonManagement = () => {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
@@ -90,6 +99,7 @@ const AdminLessonManagement = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [richContent, setRichContent] = useState<ContentBlock[]>([]);
   // Ensure pagination is always initialized
   const [pagination, setPagination] = useState({
     page: 1,
@@ -210,16 +220,58 @@ const AdminLessonManagement = () => {
   // Create/Update lesson
   const onSubmit = async (data: LessonFormData) => {
     try {
+      // Validate that either content or rich content is provided
+      if (!data.content && richContent.length === 0) {
+        toast({
+          title: "Validation Error",
+          description: "Please provide either text content or rich content blocks",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const url = editingLesson 
         ? `/api/admin/lessons/${editingLesson.id}`
         : '/api/admin/lessons';
       
       const method = editingLesson ? 'PUT' : 'POST';
       
+      // Prepare content payload with rich content support
+      const contentPayload: {
+        richContent?: ContentBlock[];
+        contentFormat?: 'HTML' | 'JSON' | 'LEGACY';
+        textContent?: string;
+      } = {};
+      
+      if (richContent.length > 0) {
+        // Store rich content as structured JSON
+        contentPayload.richContent = richContent;
+        contentPayload.contentFormat = 'JSON';
+        
+        // Also store in textContent for backward compatibility if it's a TEXT lesson
+        if (data.lessonType === 'TEXT') {
+          contentPayload.textContent = data.content || JSON.stringify(richContent);
+        }
+      } else if (data.content) {
+        // Store as HTML/text content
+        contentPayload.textContent = data.content;
+        contentPayload.contentFormat = 'HTML';
+      } else {
+        contentPayload.contentFormat = 'LEGACY';
+      }
+      
+      console.log('Current module data:', currentModule);
+      
       const payload = {
         ...data,
-        moduleId: moduleId
+        content: contentPayload,
+        moduleId: moduleId,
+        programmeId: currentModule?.courseId, // Add programmeId from current module
+        type: data.lessonType, // Map lessonType to type
+        orderIndex: data.order // Map order to orderIndex
       };
+      
+      console.log('Lesson creation payload:', payload);
 
       const response = await fetch(url, {
         method,
@@ -245,6 +297,7 @@ const AdminLessonManagement = () => {
       setShowCreateDialog(false);
       setShowEditDialog(false);
       setEditingLesson(null);
+      setRichContent([]);
       reset();
       fetchLessons();
     } catch (error) {
@@ -323,6 +376,21 @@ const AdminLessonManagement = () => {
     setValue('title', lesson.title);
     setValue('description', lesson.description);
     setValue('content', lesson.content);
+    
+    // Try to parse rich content if it's JSON
+    try {
+      const parsedContent = JSON.parse(lesson.content);
+      if (Array.isArray(parsedContent)) {
+        setRichContent(parsedContent);
+        setValue('content', ''); // Clear simple content field
+      } else {
+        setRichContent([]);
+      }
+    } catch {
+      // Not JSON, treat as simple text
+      setRichContent([]);
+    }
+    
     setValue('order', lesson.order);
     setValue('estimatedDuration', lesson.estimatedDuration);
     setValue('lessonType', lesson.lessonType as 'TEXT' | 'VIDEO' | 'QUIZ' | 'INTERACTIVE');
@@ -728,14 +796,34 @@ const AdminLessonManagement = () => {
 
               <div>
                 <Label htmlFor="content">Content *</Label>
-                <Textarea
-                  id="content"
-                  {...register('content')}
-                  placeholder="Lesson content (supports markdown)"
-                  rows={10}
-                  className="font-mono text-sm"
-                />
-                {errors.content && (
+                {watch('lessonType') === 'TEXT' ? (
+                  <div className="space-y-4">
+                    <RichContentEditor
+                      initialContent={richContent}
+                      onChange={setRichContent}
+                      lessonType={watch('lessonType')}
+                    />
+                    <div>
+                      <Label className="text-sm text-gray-600">Or use simple text content:</Label>
+                      <Textarea
+                        id="content"
+                        {...register('content')}
+                        placeholder="Simple lesson content (optional if using rich content above)"
+                        rows={4}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <Textarea
+                    id="content"
+                    {...register('content')}
+                    placeholder="Lesson content"
+                    rows={10}
+                    className="font-mono text-sm"
+                  />
+                )}
+                {errors.content && richContent.length === 0 && (
                   <p className="text-sm text-red-600 mt-1">{errors.content.message}</p>
                 )}
               </div>
@@ -746,6 +834,7 @@ const AdminLessonManagement = () => {
                   variant="outline"
                   onClick={() => {
                     setShowCreateDialog(false);
+                    setRichContent([]);
                     reset();
                   }}
                 >
@@ -884,14 +973,34 @@ const AdminLessonManagement = () => {
 
               <div>
                 <Label htmlFor="edit-content">Content *</Label>
-                <Textarea
-                  id="edit-content"
-                  {...register('content')}
-                  placeholder="Lesson content (supports markdown)"
-                  rows={10}
-                  className="font-mono text-sm"
-                />
-                {errors.content && (
+                {watch('lessonType') === 'TEXT' ? (
+                  <div className="space-y-4">
+                    <RichContentEditor
+                      initialContent={richContent}
+                      onChange={setRichContent}
+                      lessonType={watch('lessonType')}
+                    />
+                    <div>
+                      <Label className="text-sm text-gray-600">Or use simple text content:</Label>
+                      <Textarea
+                        id="edit-content"
+                        {...register('content')}
+                        placeholder="Simple lesson content (optional if using rich content above)"
+                        rows={4}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <Textarea
+                    id="edit-content"
+                    {...register('content')}
+                    placeholder="Lesson content"
+                    rows={10}
+                    className="font-mono text-sm"
+                  />
+                )}
+                {errors.content && richContent.length === 0 && (
                   <p className="text-sm text-red-600 mt-1">{errors.content.message}</p>
                 )}
               </div>
@@ -903,6 +1012,7 @@ const AdminLessonManagement = () => {
                   onClick={() => {
                     setShowEditDialog(false);
                     setEditingLesson(null);
+                    setRichContent([]);
                     reset();
                   }}
                 >

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { studentAPI } from '@/services/api';
+import { studentApi as studentAPI } from '@/services/studentApi';
 
 export const useProfilePhoto = () => {
   const queryClient = useQueryClient();

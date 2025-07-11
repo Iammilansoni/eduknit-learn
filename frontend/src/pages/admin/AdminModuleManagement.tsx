@@ -208,7 +208,9 @@ const AdminModuleManagement = () => {
       
       const payload = {
         ...data,
-        courseId: courseId || filters.courseId !== 'all' ? filters.courseId : undefined
+        programmeId: courseId || filters.courseId !== 'all' ? filters.courseId : undefined,
+        orderIndex: data.order, // Map order to orderIndex
+        learningObjectives: data.objectives // Map objectives to learningObjectives
       };
 
       const response = await fetch(url, {

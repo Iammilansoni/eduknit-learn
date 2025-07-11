@@ -1,380 +1,552 @@
-import type { Request, Response } from 'express';
-import UserCourse from '../models/UserCourse';
+import { Request, Response } from 'express';
+import mongoose, { Types } from 'mongoose';
 import Programme from '../models/Programme';
-import User from '../models/User';
-import StudentProfile from '../models/StudentProfile';
-import { 
-  success, 
-  created, 
-  validationError as badRequest, 
-  notFound, 
-  conflict, 
-  serverError 
-} from '../utils/response';
-import { AuthenticatedRequest } from '../utils/jwt';
-import logger from '../config/logger';
+import ProgrammeModule from '../models/ProgrammeModule';
+import ProgrammeLesson from '../models/ProgrammeLesson';
+import UserCourseProgress from '../models/UserCourseProgress';
+import Enrollment from '../models/Enrollment';
+import { AuthRequest } from '../middleware/auth';
+
+/**
+ * Get all active courses for programs page
+ */
+export const getAllCourses = async (req: Request, res: Response) => {
+  try {
+    const courses = await Programme.find({})
+      .select('_id title slug description category instructor level price currency imageUrl totalModules totalLessons estimatedDuration skills prerequisites overview isActive')
+      .sort({ title: 1 });
+
+    res.json({
+      success: true,
+      data: courses,
+      total: courses.length
+    });
+  } catch (error) {
+    console.error('Error getting all courses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get courses'
+    });
+  }
+};
+
+/**
+ * Get course by ID with detailed information
+ */
+export const getCourseById = async (req: Request, res: Response) => {
+  try {
+    const { courseId } = req.params;
+    const { studentId } = req.query;
+
+    if (!Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid course ID'
+      });
+    }
+
+    const course = await Programme.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
+
+    // Get enrollment status if studentId is provided
+    let enrollment = null;
+    if (studentId && Types.ObjectId.isValid(studentId as string)) {
+      enrollment = await Enrollment.findOne({
+        studentId: new mongoose.Types.ObjectId(studentId as string),
+        programmeId: new mongoose.Types.ObjectId(courseId)
+      });
+    }
+
+    // Get course progress if enrolled
+    let progress = null;
+    if (enrollment) {
+      const progressData = await UserCourseProgress.aggregate([
+        {
+                  $match: {
+          studentId: new mongoose.Types.ObjectId(studentId as string),
+          programmeId: new mongoose.Types.ObjectId(courseId)
+        }
+        },
+        {
+          $group: {
+            _id: null,
+            totalLessons: { $sum: 1 },
+            completedLessons: {
+              $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
+            },
+            totalTimeSpent: { $sum: '$timeSpent' }
+          }
+        }
+      ]);
+
+      if (progressData.length > 0) {
+        const data = progressData[0];
+        progress = {
+          totalLessons: data.totalLessons,
+          completedLessons: data.completedLessons,
+          progressPercentage: data.totalLessons > 0 ? 
+            Math.round((data.completedLessons / data.totalLessons) * 100) : 0,
+          timeSpent: data.totalTimeSpent
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        course,
+        enrollment,
+        progress
+      }
+    });
+  } catch (error) {
+    console.error('Error getting course by ID:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get course'
+    });
+  }
+};
+
+/**
+ * Get course by slug for public course detail page
+ */
+export const getCourseBySlug = async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+
+    console.log('🔍 getCourseBySlug called with slug:', slug);
+
+    if (!slug) {
+      return res.status(400).json({
+        success: false,
+        message: 'Slug is required'
+      });
+    }
+
+    // First, let's check if the course exists at all (regardless of isActive)
+    const allCourses = await Programme.find({ slug })
+      .select('_id title slug isActive');
+    
+    console.log('🔍 Found courses with slug:', slug, ':', allCourses);
+
+    const course = await Programme.findOne({ slug, isActive: true })
+      .select('_id title slug description category instructor level price currency imageUrl totalModules totalLessons estimatedDuration skills prerequisites overview isActive');
+
+    console.log('🔍 Active course found:', course);
+
+    if (!course) {
+      // Let's also check what courses exist with this slug
+      const coursesWithSlug = await Programme.find({ slug })
+        .select('title slug isActive');
+      
+      console.log('🔍 All courses with slug', slug, ':', coursesWithSlug);
+      
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: course
+    });
+  } catch (error) {
+    console.error('Error getting course by slug:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get course'
+    });
+  }
+};
+
+/**
+ * Get course mapping for frontend routing
+ */
+export const getCourseMapping = async (req: Request, res: Response) => {
+  try {
+    const courses = await Programme.find({ isActive: true })
+      .select('slug _id title')
+      .sort({ title: 1 });
+
+    const mapping: Record<string, { id: string; title: string }> = {};
+    courses.forEach(course => {
+      mapping[course.slug] = {
+        id: (course._id as mongoose.Types.ObjectId).toString(),
+        title: course.title
+      };
+    });
+
+    res.json({
+      success: true,
+      data: mapping
+    });
+  } catch (error) {
+    console.error('Error getting course mapping:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get course mapping'
+    });
+  }
+};
+
+/**
+ * Debug endpoint to list all courses with slugs
+ */
+export const debugAllCourses = async (req: Request, res: Response) => {
+  try {
+    const allCourses = await Programme.find({})
+      .select('_id title slug isActive')
+      .sort({ title: 1 });
+
+    console.log('🔍 DEBUG: All courses in database:', allCourses);
+
+    res.json({
+      success: true,
+      data: allCourses,
+      total: allCourses.length
+    });
+  } catch (error) {
+    console.error('Error in debugAllCourses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get debug info'
+    });
+  }
+};
+
+/**
+ * Get student's enrolled courses
+ */
+export const getStudentCourses = async (req: AuthRequest, res: Response) => {
+  try {
+    const studentId = req.user?.id;
+
+    if (!studentId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Student ID required'
+      });
+    }
+
+    // Get all enrollments for the student
+    const enrollments = await Enrollment.find({
+      studentId: new mongoose.Types.ObjectId(studentId)
+    }).populate('programmeId');
+
+    // Get progress for each enrollment
+    const coursesWithProgress = await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const programme = enrollment.programmeId as any;
+        
+        // Get progress data
+        const progressData = await UserCourseProgress.aggregate([
+          {
+                    $match: {
+          studentId: new mongoose.Types.ObjectId(studentId),
+          programmeId: programme._id
+        }
+          },
+          {
+            $group: {
+              _id: null,
+              totalLessons: { $sum: 1 },
+              completedLessons: {
+                $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] }
+              },
+              totalTimeSpent: { $sum: '$timeSpent' },
+              lastAccessed: { $max: '$lastAccessedAt' }
+            }
+          }
+        ]);
+
+        const progress = progressData.length > 0 ? progressData[0] : {
+          totalLessons: 0,
+          completedLessons: 0,
+          totalTimeSpent: 0,
+          lastAccessed: null
+        };
+
+        // Get next lesson
+        const nextLesson = await UserCourseProgress.findOne({
+          studentId: new mongoose.Types.ObjectId(studentId),
+          programmeId: programme._id,
+          status: { $ne: 'COMPLETED' }
+        }).populate('lessonId');
+
+        return {
+          id: (enrollment._id as mongoose.Types.ObjectId).toString(),
+          programmeId: programme._id.toString(),
+          title: programme.title,
+          description: programme.description,
+          image: programme.imageUrl || '/placeholder.svg',
+          instructor: programme.instructor || 'EduKnit Team',
+          progress: progress.totalLessons > 0 ? 
+            Math.round((progress.completedLessons / progress.totalLessons) * 100) : 0,
+          status: progress.completedLessons === progress.totalLessons ? 'Completed' : 
+                 progress.completedLessons > 0 ? 'In Progress' : 'Not Started',
+          lastAccessed: progress.lastAccessed ? 
+            new Date(progress.lastAccessed).toLocaleDateString() : 'Never',
+          nextLesson: nextLesson?.lessonId ? (nextLesson.lessonId as any).title : 'Start Course',
+          enrollmentDate: enrollment.enrollmentDate,
+          totalModules: programme.totalModules || 0,
+          totalLessons: programme.totalLessons || 0,
+          completedModules: 0, // TODO: Calculate from module progress
+          completedLessons: progress.completedLessons,
+          estimatedDuration: programme.estimatedDuration || 0,
+          category: programme.category || 'General',
+          level: programme.level || 'Beginner'
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        courses: coursesWithProgress,
+        total: coursesWithProgress.length
+      }
+    });
+  } catch (error) {
+    console.error('Error getting student courses:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get student courses'
+    });
+  }
+};
 
 /**
  * Enroll student in a course
- * POST /api/course/enroll
  */
-export const enrollInCourse = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const enrollInCourse = async (req: AuthRequest, res: Response) => {
   try {
-    const { courseId } = req.body;
-    const userId = req.user?.id;
+    const { programmeId } = req.body;
+    const studentId = req.user?.id;
 
-    if (!userId) {
-      return badRequest(res, 'User ID is required');
+    if (!studentId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
     }
 
-    if (!courseId) {
-      return badRequest(res, 'Course ID is required');
+    if (!Types.ObjectId.isValid(programmeId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid programme ID'
+      });
     }
 
     // Check if course exists and is active
-    const course = await Programme.findById(courseId);
-    if (!course || !course.isActive) {
-      return notFound(res, 'Course not found or not available for enrollment');
+    const programme = await Programme.findById(programmeId);
+    if (!programme) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
     }
 
-    // Check if user is already enrolled
-    const existingEnrollment = await UserCourse.findOne({ userId, courseId });
+    if (!programme.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Course is not available for enrollment'
+      });
+    }
+
+    // Check if already enrolled
+    const existingEnrollment = await Enrollment.findOne({
+      studentId: new mongoose.Types.ObjectId(studentId),
+      programmeId: new mongoose.Types.ObjectId(programmeId)
+    });
+
     if (existingEnrollment) {
-      return conflict(res, 'Already enrolled in this course');
-    }
-
-    // Create new enrollment
-    const userCourse = new UserCourse({
-      userId,
-      courseId,
-      enrolledAt: new Date(),
-      status: 'ENROLLED',
-      progressPercent: 0,
-      studyTime: 0,
-      completedLessons: [],
-      analytics: {
-        streakDays: 0,
-        lastStreakDate: new Date(),
-        totalPoints: 0,
-        averageScore: 0
-      }
-    });
-
-    await userCourse.save();
-
-    // Update student profile statistics
-    const profile = await StudentProfile.findOne({ userId });
-    if (profile) {
-      profile.statistics.totalCoursesEnrolled += 1;
-      await profile.save();
-    }
-
-    // Add enrollment points
-    const enrollmentPoints = 50; // Points for enrolling
-    userCourse.analytics.totalPoints += enrollmentPoints;
-    await userCourse.save();
-
-    logger.info(`User ${userId} enrolled in course ${courseId}`);
-
-    created(res, {
-      enrollment: userCourse,
-      course: {
-        id: course._id,
-        title: course.title,
-        description: course.description,
-        category: course.category
-      }
-    }, 'Successfully enrolled in course');
-
-  } catch (error) {
-    logger.error('Course enrollment error:', error);
-    serverError(res, 'Failed to enroll in course');
-  }
-};
-
-/**
- * Get user's enrolled courses
- * GET /api/course/my-courses
- */
-export const getMyCourses = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.user?.id;
-    const { status, category, search } = req.query;
-
-    if (!userId) {
-      return badRequest(res, 'User ID is required');
-    }
-
-    // Build query
-    let query: any = { userId };
-    
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-
-    // Get enrolled courses with populated course data
-    let enrollments = await UserCourse.find(query)
-      .populate({
-        path: 'courseId',
-        select: 'title description category instructor duration level imageUrl totalModules totalLessons estimatedDuration skills',
-        match: category ? { category } : {}
-      })
-      .sort({ enrolledAt: -1 });
-
-    // Filter out enrollments where course was not found (due to category filter)
-    enrollments = enrollments.filter(enrollment => enrollment.courseId);
-
-    // Apply search filter if provided
-    if (search) {
-      const searchTerm = search.toString().toLowerCase();
-      enrollments = enrollments.filter(enrollment => {
-        const course = enrollment.courseId as any;
-        return course.title?.toLowerCase().includes(searchTerm) ||
-               course.description?.toLowerCase().includes(searchTerm) ||
-               course.category?.toLowerCase().includes(searchTerm);
+      return res.status(400).json({
+        success: false,
+        message: 'Already enrolled in this course'
       });
     }
 
-    // Format response
-    const myCourses = enrollments.map(enrollment => {
-      const course = enrollment.courseId as any;
-      return {
-        enrollmentId: enrollment._id,
-        course: {
-          id: course._id,
-          title: course.title,
-          description: course.description,
-          category: course.category,
-          instructor: course.instructor,
-          duration: course.duration,
-          level: course.level,
-          imageUrl: course.imageUrl,
-          totalModules: course.totalModules,
-          totalLessons: course.totalLessons,
-          estimatedDuration: course.estimatedDuration,
-          skills: course.skills || []
-        },
-        enrollment: {
-          status: enrollment.status,
-          enrolledAt: enrollment.enrolledAt,
-          progressPercent: enrollment.progressPercent,
-          studyTime: enrollment.studyTime,
-          lastAccessed: enrollment.lastAccessed,
-          completedLessons: enrollment.completedLessons.length,
-          progressLabel: (enrollment.status === 'COMPLETED' || enrollment.progressPercent === 100) ? 'Completed' : 
-                        enrollment.progressPercent >= 75 ? 'Almost Done' :
-                        enrollment.progressPercent >= 50 ? 'Halfway' :
-                        enrollment.progressPercent >= 25 ? 'Getting Started' : 'Just Started'
-        },
-        analytics: enrollment.analytics,
-        achievements: enrollment.achievements
-      };
+    // Create enrollment
+    const enrollment = new Enrollment({
+      studentId: new mongoose.Types.ObjectId(studentId),
+      programmeId: new mongoose.Types.ObjectId(programmeId),
+      enrollmentDate: new Date(),
+      status: 'active'
     });
-
-    // Calculate summary statistics
-    const summary = {
-      total: myCourses.length,
-      enrolled: myCourses.filter(c => c.enrollment.status === 'ENROLLED').length,
-      inProgress: myCourses.filter(c => c.enrollment.status === 'IN_PROGRESS').length,
-      completed: myCourses.filter(c => c.enrollment.status === 'COMPLETED').length,
-      paused: myCourses.filter(c => c.enrollment.status === 'PAUSED').length,
-      averageProgress: myCourses.length > 0 
-        ? Math.round(myCourses.reduce((sum, c) => sum + c.enrollment.progressPercent, 0) / myCourses.length)
-        : 0,
-      totalStudyTime: myCourses.reduce((sum, c) => sum + c.enrollment.studyTime, 0),
-      totalPoints: myCourses.reduce((sum, c) => sum + c.analytics.totalPoints, 0),
-      categories: [...new Set(myCourses.map(c => c.course.category))].filter(Boolean)
-    };
-
-    success(res, {
-      courses: myCourses,
-      summary
-    }, 'My courses retrieved successfully');
-
-  } catch (error) {
-    logger.error('Get my courses error:', error);
-    serverError(res, 'Failed to retrieve enrolled courses');
-  }
-};
-
-/**
- * Get detailed course data for enrolled course
- * GET /api/course/my-course/:courseId
- */
-export const getEnrolledCourseDetail = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.user?.id;
-    const { courseId } = req.params;
-
-    if (!userId) {
-      return badRequest(res, 'User ID is required');
-    }
-
-    // Check if user is enrolled in this course
-    const enrollment = await UserCourse.findOne({ userId, courseId })
-      .populate({
-        path: 'courseId',
-        populate: [
-          {
-            path: 'modules',
-            model: 'ProgrammeModule',
-            populate: {
-              path: 'lessons',
-              model: 'ProgrammeLesson'
-            }
-          }
-        ]
-      });
-
-    if (!enrollment) {
-      return notFound(res, 'Course enrollment not found');
-    }
-
-    const course = enrollment.courseId as any;
-
-    // Determine which modules/lessons are unlocked based on progress
-    const enhancedModules = course.modules?.map((module: any, moduleIndex: number) => {
-      const isUnlocked = moduleIndex === 0 || enrollment.progressPercent >= (moduleIndex * 20); // Unlock based on progress
-      
-      const enhancedLessons = module.lessons?.map((lesson: any) => ({
-        ...lesson.toJSON(),
-        isCompleted: enrollment.completedLessons.includes(lesson._id),
-        isUnlocked: isUnlocked
-      }));
-
-      const completedLessons = enhancedLessons?.filter((l: any) => l.isCompleted).length || 0;
-      const totalLessons = enhancedLessons?.length || 1;
-      const moduleProgress = Math.round((completedLessons / totalLessons) * 100);
-
-      return {
-        ...module.toJSON(),
-        lessons: enhancedLessons,
-        isUnlocked,
-        progress: moduleProgress,
-        completedLessons: completedLessons,
-        totalLessons: totalLessons
-      };
-    }) || [];
-
-    // Calculate next lesson
-    const nextLesson = enhancedModules
-      .flatMap((m: any) => m.lessons)
-      .find((l: any) => !l.isCompleted && l.isUnlocked);
-
-    const courseDetails = {
-      course: {
-        id: course._id,
-        title: course.title,
-        description: course.description,
-        category: course.category,
-        instructor: course.instructor,
-        duration: course.duration,
-        level: course.level,
-        imageUrl: course.imageUrl,
-        overview: course.overview,
-        skills: course.skills || [],
-        prerequisites: course.prerequisites || [],
-        totalModules: enhancedModules.length,
-        totalLessons: enhancedModules.reduce((sum: number, m: any) => sum + m.totalLessons, 0)
-      },
-      enrollment: {
-        id: enrollment._id,
-        status: enrollment.status,
-        enrolledAt: enrollment.enrolledAt,
-        progressPercent: enrollment.progressPercent,
-        studyTime: enrollment.studyTime,
-        lastAccessed: enrollment.lastAccessed,
-        progressLabel: (enrollment.status === 'COMPLETED' || enrollment.progressPercent === 100) ? 'Completed' : 
-                      enrollment.progressPercent >= 75 ? 'Almost Done' :
-                      enrollment.progressPercent >= 50 ? 'Halfway' :
-                      enrollment.progressPercent >= 25 ? 'Getting Started' : 'Just Started'
-      },
-      modules: enhancedModules,
-      nextLesson: nextLesson ? {
-        id: nextLesson.id,
-        title: nextLesson.title,
-        moduleTitle: enhancedModules.find((m: any) => 
-          m.lessons.some((l: any) => l.id === nextLesson.id)
-        )?.title
-      } : null,
-      analytics: enrollment.analytics,
-      achievements: enrollment.achievements
-    };
-
-    success(res, courseDetails, 'Course details retrieved successfully');
-
-  } catch (error) {
-    logger.error('Get enrolled course detail error:', error);
-    serverError(res, 'Failed to retrieve course details');
-  }
-};
-
-/**
- * Update course progress
- * POST /api/course/progress
- */
-export const updateCourseProgress = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.user?.id;
-    const { courseId, lessonId, timeSpent, progressPercent } = req.body;
-
-    if (!userId) {
-      return badRequest(res, 'User ID is required');
-    }
-
-    const enrollment = await UserCourse.findOne({ userId, courseId });
-    if (!enrollment) {
-      return notFound(res, 'Course enrollment not found');
-    }
-
-    // Update progress
-    if (lessonId && !enrollment.completedLessons.includes(lessonId)) {
-      enrollment.completedLessons.push(lessonId);
-    }
-
-    if (timeSpent) {
-      enrollment.studyTime += timeSpent;
-    }
-
-    if (progressPercent !== undefined) {
-      enrollment.progressPercent = Math.min(progressPercent, 100);
-    }
-
-    enrollment.lastAccessed = new Date();
-
-    // Update status based on progress
-    if (enrollment.progressPercent > 0 && enrollment.progressPercent < 100) {
-      enrollment.status = 'IN_PROGRESS';
-    } else if (enrollment.progressPercent >= 100) {
-      enrollment.status = 'COMPLETED';
-      
-      // Award completion points
-      enrollment.analytics.totalPoints += 500; // Completion bonus
-      
-      // Update profile stats
-      const profile = await StudentProfile.findOne({ userId });
-      if (profile) {
-        profile.statistics.totalCoursesCompleted += 1;
-        profile.gamification.totalPoints += 500;
-        await profile.save();
-      }
-    }
-
-    // Update streak
-    enrollment.updateStreak();
 
     await enrollment.save();
 
-    success(res, {
-      progressPercent: enrollment.progressPercent,
-      status: enrollment.status,
-      studyTime: enrollment.studyTime,
-      completedLessons: enrollment.completedLessons.length,
-      analytics: enrollment.analytics
-    }, 'Progress updated successfully');
-
+    res.status(201).json({
+      success: true,
+      message: 'Successfully enrolled in course',
+      data: {
+        enrollmentId: (enrollment._id as mongoose.Types.ObjectId).toString(),
+        programmeId: enrollment.programmeId.toString(),
+        enrollmentDate: enrollment.enrollmentDate
+      }
+    });
   } catch (error) {
-    logger.error('Update course progress error:', error);
-    serverError(res, 'Failed to update progress');
+    console.error('Error enrolling in course:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to enroll in course'
+    });
   }
+};
+
+/**
+ * Get course progress for a student
+ */
+export const getCourseProgress = async (req: AuthRequest, res: Response) => {
+  try {
+    const { courseId } = req.params;
+    const studentId = req.user?.id;
+
+    if (!studentId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    if (!Types.ObjectId.isValid(courseId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid course ID'
+      });
+    }
+
+    // Get course details
+    const course = await Programme.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: 'Course not found'
+      });
+    }
+
+    // Get enrollment
+    const enrollment = await Enrollment.findOne({
+      studentId: new mongoose.Types.ObjectId(studentId),
+      programmeId: new mongoose.Types.ObjectId(courseId)
+    });
+
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Not enrolled in this course'
+      });
+    }
+
+    // Get modules and lessons
+    const modules = await ProgrammeModule.find({
+      programmeId: new mongoose.Types.ObjectId(courseId),
+      isActive: true
+    }).sort({ orderIndex: 1 });
+
+    const moduleProgress = await Promise.all(
+      modules.map(async (module) => {
+        const lessons = await ProgrammeLesson.find({
+          moduleId: module._id,
+          isActive: true
+        }).sort({ orderIndex: 1 });
+
+        const lessonProgress = await Promise.all(
+          lessons.map(async (lesson) => {
+            const progress = await UserCourseProgress.findOne({
+              studentId: new mongoose.Types.ObjectId(studentId),
+              lessonId: lesson._id
+            });
+
+            return {
+              id: (lesson._id as mongoose.Types.ObjectId).toString(),
+              title: lesson.title,
+              description: lesson.description,
+              type: lesson.type,
+              orderIndex: lesson.orderIndex,
+              status: progress?.status || 'NOT_STARTED',
+              progressPercentage: progress?.progressPercentage || 0,
+              timeSpent: progress?.timeSpent || 0,
+              completedAt: progress?.completedAt
+            };
+          })
+        );
+
+        const completedLessons = lessonProgress.filter(l => l.status === 'COMPLETED').length;
+        const moduleProgressPercentage = lessons.length > 0 ? 
+          (completedLessons / lessons.length) * 100 : 0;
+
+        return {
+          id: (module._id as mongoose.Types.ObjectId).toString(),
+          title: module.title,
+          description: module.description,
+          orderIndex: module.orderIndex,
+          lessons: lessonProgress,
+          progress: {
+            completedLessons,
+            totalLessons: lessons.length,
+            percentage: moduleProgressPercentage
+          }
+        };
+      })
+    );
+
+    // Calculate overall progress
+    const totalLessons = moduleProgress.reduce((sum, module) => sum + module.progress.totalLessons, 0);
+    const completedLessons = moduleProgress.reduce((sum, module) => sum + module.progress.completedLessons, 0);
+    const overallProgress = totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+
+    res.json({
+      success: true,
+      data: {
+        course: {
+          id: (course._id as mongoose.Types.ObjectId).toString(),
+          title: course.title,
+          description: course.description,
+          category: course.category,
+          level: course.level,
+          totalModules: course.totalModules,
+          totalLessons: course.totalLessons,
+          estimatedDuration: course.estimatedDuration
+        },
+        enrollment: {
+          id: (enrollment._id as mongoose.Types.ObjectId).toString(),
+          enrollmentDate: enrollment.enrollmentDate,
+          status: enrollment.status
+        },
+        progress: {
+          overall: Math.round(overallProgress * 100) / 100,
+          completedLessons,
+          totalLessons,
+          completedModules: moduleProgress.filter(m => m.progress.percentage === 100).length,
+          totalModules: modules.length
+        },
+        modules: moduleProgress
+      }
+    });
+  } catch (error) {
+    console.error('Error getting course progress:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get course progress'
+    });
+  }
+};
+
+export default {
+  getAllCourses,
+  getCourseById,
+  getCourseBySlug,
+  getCourseMapping,
+  debugAllCourses,
+  getStudentCourses,
+  enrollInCourse,
+  getCourseProgress
 };

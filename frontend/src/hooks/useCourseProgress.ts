@@ -1,7 +1,30 @@
 import { useState, useEffect, useCallback } from 'react';
-import { progressApi, handleApiError } from '@/services/api';
+import { progressApi } from '@/services/progressApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
 import { useQueryClient } from '@tanstack/react-query';
+
+// Helper function to handle API errors
+const handleApiError = (error: any): string => {
+  if (error?.response?.data?.message) {
+    return error.response.data.message;
+  }
+  if (error?.message) {
+    return error.message;
+  }
+  if (error?.response?.status === 404) {
+    return 'Resource not found';
+  }
+  if (error?.response?.status === 401) {
+    return 'Authentication required';
+  }
+  if (error?.response?.status === 403) {
+    return 'Access denied';
+  }
+  if (error?.response?.status >= 500) {
+    return 'Server error. Please try again later.';
+  }
+  return 'An unexpected error occurred';
+};
 
 // Types for API responses
 export interface Course {

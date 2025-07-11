@@ -69,13 +69,16 @@ export interface UserFilters {
 // User API functions
 export const userApi = {
   // Get all users with filtering and pagination
-  async getAllUsers(filters?: UserFilters): Promise<UsersListResponse> {
+  async getAllUsers(filters?: UserFilters): Promise<{ success: boolean; data: { users: User[]; pagination: any } }> {
     try {
-      const response = await api.get<ApiResponse<UsersListResponse>>('/users', { params: filters });
+      const response = await api.get<ApiResponse<{ users: User[]; pagination: any }>>('/user', { params: filters });
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch users');
       }
-      return response.data.data!;
+      return {
+        success: response.data.success,
+        data: response.data.data!
+      };
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch users');
@@ -85,7 +88,7 @@ export const userApi = {
   // Get user by ID
   async getUserById(userId: string): Promise<User> {
     try {
-      const response = await api.get<ApiResponse<User>>(`/users/${userId}`);
+      const response = await api.get<ApiResponse<User>>(`/user/${userId}`);
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch user');
       }
@@ -97,13 +100,17 @@ export const userApi = {
   },
 
   // Update user
-  async updateUser(userId: string, userData: UpdateUserData): Promise<User> {
+  async updateUser(userId: string, userData: UpdateUserData): Promise<{ success: boolean; message: string; user: User }> {
     try {
-      const response = await api.put<ApiResponse<User>>(`/users/${userId}`, userData);
+      const response = await api.put<ApiResponse<{ message: string; user: User }>>(`/user/${userId}`, userData);
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to update user');
       }
-      return response.data.data!;
+      return {
+        success: response.data.success,
+        message: response.data.data!.message,
+        user: response.data.data!.user
+      };
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to update user');
@@ -111,12 +118,16 @@ export const userApi = {
   },
 
   // Delete user
-  async deleteUser(userId: string): Promise<void> {
+  async deleteUser(userId: string): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await api.delete<ApiResponse>(`/users/${userId}`);
+      const response = await api.delete<ApiResponse<{ message: string }>>(`/user/${userId}`);
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to delete user');
       }
+      return {
+        success: response.data.success,
+        message: response.data.data!.message
+      };
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to delete user');
@@ -124,13 +135,17 @@ export const userApi = {
   },
 
   // Update enrollment status
-  async updateEnrollmentStatus(userId: string, status: 'active' | 'inactive' | 'suspended'): Promise<User> {
+  async updateEnrollmentStatus(userId: string, status: 'active' | 'inactive' | 'suspended'): Promise<{ success: boolean; message: string; user: User }> {
     try {
-      const response = await api.patch<ApiResponse<User>>(`/users/${userId}/enrollment-status`, { enrollmentStatus: status });
+      const response = await api.patch<ApiResponse<{ message: string; user: User }>>(`/user/${userId}/enrollment-status`, { enrollmentStatus: status });
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to update enrollment status');
       }
-      return response.data.data!;
+      return {
+        success: response.data.success,
+        message: response.data.data!.message,
+        user: response.data.data!.user
+      };
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to update enrollment status');
@@ -138,13 +153,16 @@ export const userApi = {
   },
 
   // Get user statistics
-  async getUserStats(): Promise<UserStats> {
+  async getUserStats(): Promise<{ success: boolean; stats: UserStats }> {
     try {
-      const response = await api.get<ApiResponse<UserStats>>('/users/stats');
+      const response = await api.get<ApiResponse<{ stats: UserStats }>>('/user/stats');
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch user stats');
       }
-      return response.data.data!;
+      return {
+        success: response.data.success,
+        stats: response.data.stats!
+      };
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch user stats');
@@ -154,7 +172,7 @@ export const userApi = {
   // Change password (admin function)
   async changeUserPassword(userId: string, passwordData: ChangePasswordData): Promise<void> {
     try {
-      const response = await api.post<ApiResponse>(`/users/${userId}/change-password`, passwordData);
+      const response = await api.post<ApiResponse>(`/user/${userId}/change-password`, passwordData);
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to change password');
       }
@@ -165,16 +183,48 @@ export const userApi = {
   },
 
   // Create new user (admin function)
-  async createUser(userData: CreateUserData): Promise<User> {
+  async createUser(userData: CreateUserData): Promise<{ success: boolean; message: string; user: User }> {
     try {
-      const response = await api.post<ApiResponse<User>>('/users', userData);
+      const response = await api.post<ApiResponse<{ message: string; user: User }>>('/user', userData);
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to create user');
+      }
+      return {
+        success: response.data.success,
+        message: response.data.data!.message,
+        user: response.data.data!.user
+      };
+    } catch (error) {
+      const axiosError = error as AxiosError<ApiResponse>;
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to create user');
+    }
+  },
+
+  // Get user courses
+  async getUserCourses(): Promise<any> {
+    try {
+      const response = await api.get<ApiResponse<any>>('/user/courses');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch user courses');
       }
       return response.data.data!;
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
-      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to create user');
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch user courses');
+    }
+  },
+
+  // Get user learning stats
+  async getUserLearningStats(): Promise<any> {
+    try {
+      const response = await api.get<ApiResponse<any>>('/user/learning-stats');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to fetch user learning stats');
+      }
+      return response.data.data!;
+    } catch (error) {
+      const axiosError = error as AxiosError<ApiResponse>;
+      throw new Error(axiosError.response?.data?.message || axiosError.message || 'Failed to fetch user learning stats');
     }
   },
 };

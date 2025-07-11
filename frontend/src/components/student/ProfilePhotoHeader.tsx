@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
-import { studentAPI } from '@/services/api';
+import { studentApi as studentAPI } from '@/services/studentApi';
 import { Upload, Trash2, Camera, Loader2, Plus, X } from 'lucide-react';
 import {
   Tooltip,

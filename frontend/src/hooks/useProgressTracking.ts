@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from '@/hooks/use-toast';
-import { progressApi } from '@/services/api';
+import { progressApi } from '@/services/progressApi';
 
 interface ProgressHookReturn {
   markLessonCompleted: (lessonId: string, timeSpent?: number, watchTimeVideo?: number, notes?: string) => Promise<void>;

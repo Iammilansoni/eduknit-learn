@@ -26,8 +26,10 @@ import {
   Star,
   BarChart3
 } from 'lucide-react';
-import { courseContentAPI, studentAPI } from '@/services/api';
+import { courseContentApi as courseContentAPI } from '@/services/courseContentApi';
+import { studentApi as studentAPI } from '@/services/studentApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import { cn } from '@/lib/utils';
 
 interface Module {
   id: string;
@@ -42,6 +44,7 @@ interface Module {
     percentage: number;
     timeSpent: number;
   };
+  isActive: boolean;
 }
 
 interface Lesson {
@@ -85,14 +88,34 @@ const CourseDetailPage: React.FC = () => {
   // Fetch course progress
   const { data: progressData, isLoading, error } = useQuery({
     queryKey: ['course-progress', courseId],
-    queryFn: () => courseContentAPI.getCourseProgress(courseId!, user?.id),
+    queryFn: () => {
+      console.log('🔍 DEBUG: Calling getCourseProgress with:', { 
+        courseId, 
+        userId: user?.id,
+        courseIdType: typeof courseId,
+        userIdType: typeof user?.id,
+        courseIdValid: courseId && courseId.length === 24,
+        userIdValid: user?.id && user.id.length === 24
+      });
+      return courseContentAPI.getCourseProgress(courseId!, user?.id);
+    },
     enabled: !!courseId && !!user?.id,
   });
 
   // Fetch next module recommendation
   const { data: nextModuleData } = useQuery({
     queryKey: ['next-module', courseId],
-    queryFn: () => courseContentAPI.getNextModule(courseId!, user?.id),
+    queryFn: () => {
+      console.log('🔍 DEBUG: Calling getNextModule with:', { 
+        courseId, 
+        userId: user?.id,
+        courseIdType: typeof courseId,
+        userIdType: typeof user?.id,
+        courseIdValid: courseId && courseId.length === 24,
+        userIdValid: user?.id && user.id.length === 24
+      });
+      return courseContentAPI.getNextModule(courseId!, user?.id);
+    },
     enabled: !!courseId && !!user?.id,
   });
 
@@ -293,83 +316,98 @@ const CourseDetailPage: React.FC = () => {
           <CardContent>
                   <div className="space-y-4">
               {courseProgress.modules && courseProgress.modules.length > 0 ? (
-                courseProgress.modules.map((module) => (
-                <Collapsible
-                  key={module.id}
-                  open={expandedModules.has(module.id)}
-                  onOpenChange={() => toggleModule(module.id)}
-                >
-                  <CollapsibleTrigger asChild>
-                    <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                      <div className="flex items-center space-x-3">
-                        {expandedModules.has(module.id) ? (
-                          <ChevronDown className="h-4 w-4 text-gray-500" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-gray-500" />
-                        )}
-                              <div>
-                          <h4 className="font-semibold">Module {module.orderIndex}: {module.title}</h4>
-                          <p className="text-sm text-gray-600">{module.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            {module.progress?.completedLessons || 0}/{module.lessons.length}
-                          </div>
-                          <div className="text-xs text-gray-500">lessons</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            {module.progress?.percentage || 0}%
-                          </div>
-                          <Progress 
-                            value={module.progress?.percentage || 0} 
-                            className="w-16 h-2" 
-                          />
-                              </div>
-                        <Badge variant="outline">
-                          {formatDuration(module.estimatedDuration)}
-                                    </Badge>
-                                    </div>
-                              </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="ml-8 mt-2 space-y-2">
-                      {module.lessons.map((lesson) => (
+                courseProgress.modules.map((module) => {
+                  const isInactive = module.isActive === false;
+                  return (
+                    <Collapsible
+                      key={module.id}
+                      open={expandedModules.has(module.id) && !isInactive}
+                      onOpenChange={() => !isInactive && toggleModule(module.id)}
+                    >
+                      <CollapsibleTrigger asChild>
                         <div
-                          key={lesson.id}
-                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                          onClick={() => handleLessonClick(lesson.id)}
+                          className={cn(
+                            "flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-opacity duration-300",
+                            isInactive && "opacity-60 pointer-events-none bg-gray-100"
+                          )}
                         >
                           <div className="flex items-center space-x-3">
-                            {getLessonIcon(lesson.type)}
-                            <div>
-                              <h5 className="font-medium">Lesson {lesson.orderIndex}: {lesson.title}</h5>
-                              <p className="text-sm text-gray-600">{lesson.description}</p>
-                            </div>
-                                        </div>
-                          <div className="flex items-center space-x-3">
-                            {getLessonStatusBadge(lesson.status)}
-                            <Badge variant="outline">
-                              {formatDuration(lesson.duration)}
-                            </Badge>
-                            {lesson.status === 'COMPLETED' && (
-                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            {expandedModules.has(module.id) && !isInactive ? (
+                              <ChevronDown className="h-4 w-4 text-gray-500" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-gray-500" />
                             )}
-                                      </div>
-                                    </div>
-                      ))}
-                                    </div>
-                                  </CollapsibleContent>
-                </Collapsible>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No course content available</p>
-              </div>
-            )}
+                            <div>
+                              <h4 className="font-semibold flex items-center gap-2">
+                                Module {module.orderIndex}: {module.title}
+                                {isInactive && (
+                                  <span className="ml-2 text-xs font-medium px-2 py-1 bg-eduOrange-100 text-eduOrange-600 rounded">Coming Soon</span>
+                                )}
+                              </h4>
+                              <p className="text-sm text-gray-600">{module.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <div className="text-right">
+                              <div className="text-sm font-medium">
+                                {module.progress?.completedLessons || 0}/{module.lessons.length}
+                              </div>
+                              <div className="text-xs text-gray-500">lessons</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-medium">
+                                {module.progress?.percentage || 0}%
+                              </div>
+                              <Progress 
+                                value={module.progress?.percentage || 0} 
+                                className="w-16 h-2" 
+                              />
+                            </div>
+                            <Badge variant="outline">
+                              {formatDuration(module.estimatedDuration)}
+                            </Badge>
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                      {!isInactive && (
+                        <CollapsibleContent>
+                          <div className="ml-8 mt-2 space-y-2">
+                            {module.lessons.map((lesson) => (
+                              <div
+                                key={lesson.id}
+                                className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                                onClick={() => handleLessonClick(lesson.id)}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  {getLessonIcon(lesson.type)}
+                                  <div>
+                                    <h5 className="font-medium">Lesson {lesson.orderIndex}: {lesson.title}</h5>
+                                    <p className="text-sm text-gray-600">{lesson.description}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-3">
+                                  {getLessonStatusBadge(lesson.status)}
+                                  <Badge variant="outline">
+                                    {formatDuration(lesson.duration)}
+                                  </Badge>
+                                  {lesson.status === 'COMPLETED' && (
+                                    <CheckCircle className="h-4 w-4 text-green-600" />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CollapsibleContent>
+                      )}
+                    </Collapsible>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No course content available</p>
+                </div>
+              )}
           </div>
           </CardContent>
         </Card>

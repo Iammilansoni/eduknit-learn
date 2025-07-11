@@ -25,7 +25,7 @@ import {
   Star
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContextUtils';
-import { analyticsAPI } from '@/services/api';
+import { analyticsApi as analyticsAPI } from '@/services/analyticsApi';
 
 interface LearningStats {
   totalCourses: number;
