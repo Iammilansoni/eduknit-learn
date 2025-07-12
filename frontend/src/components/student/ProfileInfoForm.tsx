@@ -23,8 +23,14 @@ import { Save, Loader2, User, Phone, Mail, MapPin, GraduationCap, Globe } from '
 const profileInfoSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(50, 'First name must be less than 50 characters'),
   lastName: z.string().min(1, 'Last name is required').max(50, 'Last name must be less than 50 characters'),
-  phoneNumber: z.string().min(10, 'Phone number must be at least 10 digits').optional(),
-  alternateEmail: z.string().email('Invalid email format').optional(),
+  phoneNumber: z.string().optional().refine(
+    (val) => !val || val === '' || val.length >= 10,
+    { message: 'Phone number must be at least 10 digits' }
+  ),
+  alternateEmail: z.string().optional().refine(
+    (val) => !val || val === '' || z.string().email().safeParse(val).success,
+    { message: 'Invalid email format' }
+  ),
   address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
@@ -96,22 +102,39 @@ const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({ initialData }) => {
 
   const onSubmit = async (data: ProfileInfoFormData) => {
     try {
-      await updateProfile.mutateAsync({
+      // Prepare the data structure that matches backend expectations
+      const submitData: any = {
         firstName: data.firstName,
         lastName: data.lastName,
-        contactInfo: {
-          phoneNumber: data.phoneNumber,
-          alternateEmail: data.alternateEmail,
-        },
-        address: data.address,
-        academicInfo: {
-          educationLevel: data.educationLevel,
-          institution: data.institution,
-          fieldOfStudy: data.fieldOfStudy,
-          graduationYear: data.graduationYear,
-          currentlyStudying: data.currentlyStudying,
-        },
-      });
+      };
+
+      // Only include contactInfo if there's actual data
+      if ((data.phoneNumber && data.phoneNumber.trim() !== '') || (data.alternateEmail && data.alternateEmail.trim() !== '')) {
+        submitData.contactInfo = {};
+        if (data.phoneNumber && data.phoneNumber.trim() !== '') {
+          submitData.contactInfo.phoneNumber = data.phoneNumber;
+        }
+        if (data.alternateEmail && data.alternateEmail.trim() !== '') {
+          submitData.contactInfo.alternateEmail = data.alternateEmail;
+        }
+      }
+
+      // Only include address if there's actual data
+      if (data.address && Object.values(data.address).some(value => value && value.trim() !== '')) {
+        submitData.address = data.address;
+      }
+
+      // Only include academicInfo if there's actual data
+      if (data.educationLevel || data.institution || data.fieldOfStudy || data.graduationYear !== undefined || data.currentlyStudying !== undefined) {
+        submitData.academicInfo = {};
+        if (data.educationLevel) submitData.academicInfo.educationLevel = data.educationLevel;
+        if (data.institution) submitData.academicInfo.institution = data.institution;
+        if (data.fieldOfStudy) submitData.academicInfo.fieldOfStudy = data.fieldOfStudy;
+        if (data.graduationYear !== undefined) submitData.academicInfo.graduationYear = data.graduationYear;
+        if (data.currentlyStudying !== undefined) submitData.academicInfo.currentlyStudying = data.currentlyStudying;
+      }
+
+      await updateProfile.mutateAsync(submitData);
     } catch (error) {
       // Error is handled by the mutation hook
     }
@@ -240,12 +263,12 @@ const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({ initialData }) => {
                   name="phoneNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone Number</FormLabel>
+                      <FormLabel>Phone Number <span className="text-xs text-gray-500">(Optional)</span></FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter your phone number" {...field} />
+                        <Input placeholder="Enter your phone number (optional)" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Include country code (e.g., +1-555-123-4567)
+                        Include country code (e.g., +1-555-123-4567). Optional but helpful for support.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -256,12 +279,12 @@ const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({ initialData }) => {
                   name="alternateEmail"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Alternate Email</FormLabel>
+                      <FormLabel>Alternate Email <span className="text-xs text-gray-500">(Optional)</span></FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="Enter alternate email" {...field} />
+                        <Input type="email" placeholder="Enter alternate email (optional)" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Optional backup email address
+                        Optional backup email address for account recovery
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

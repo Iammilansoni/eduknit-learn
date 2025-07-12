@@ -5,21 +5,10 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { 
   User,
-  Eye,
-  Shield,
-  Mail,
   MapPin,
-  GraduationCap,
-  BookOpen,
-  Clock,
-  Calendar,
-  Trophy,
-  TrendingUp,
-  Camera,
 } from 'lucide-react';
 import {
   PersonalInfoForm,
@@ -31,7 +20,7 @@ import {
 
 const StudentProfilePage = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('profile');
 
   // API hooks
   const { data: profileData, isLoading, error } = useStudentProfile();
@@ -142,11 +131,7 @@ const StudentProfilePage = () => {
         <Card>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <CardHeader>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="overview" className="text-sm font-medium">
-                  <Eye className="h-4 w-4 mr-2" />
-                  Overview & Programs
-                </TabsTrigger>
+              <TabsList className="grid w-full grid-cols-1">
                 <TabsTrigger value="profile" className="text-sm font-medium">
                   <User className="h-4 w-4 mr-2" />
                   Profile Information
@@ -154,150 +139,6 @@ const StudentProfilePage = () => {
               </TabsList>
             </CardHeader>
 
-            {/* Overview Tab - Contains basic info and programs */}
-            <TabsContent value="overview" className="p-6">
-              <div className="space-y-8">
-                {/* Quick Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-gray-600">Total Programs</p>
-                          <p className="text-2xl font-bold">{enrollmentStats.total}</p>
-                        </div>
-                        <BookOpen className="h-8 w-8 text-blue-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-gray-600">Active</p>
-                          <p className="text-2xl font-bold text-green-600">{enrollmentStats.active}</p>
-                        </div>
-                        <TrendingUp className="h-8 w-8 text-green-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-gray-600">Completed</p>
-                          <p className="text-2xl font-bold text-blue-600">{enrollmentStats.completed}</p>
-                        </div>
-                        <Trophy className="h-8 w-8 text-blue-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-gray-600">Avg. Progress</p>
-                          <p className="text-2xl font-bold text-purple-600">{enrollmentStats.averageProgress}%</p>
-                        </div>
-                        <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
-                          <div className="text-purple-600 font-bold text-sm">%</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Enrolled Programs */}
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold flex items-center">
-                      <BookOpen className="h-6 w-6 mr-2" />
-                      My Enrolled Programs
-                    </h2>
-                    {enrolledProgramsLoading && (
-                      <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        <span className="text-sm text-gray-600">Loading...</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {enrolledPrograms.length === 0 ? (
-                    <Card>
-                      <CardContent className="p-8 text-center">
-                        <BookOpen className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No Programs Enrolled</h3>
-                        <p className="text-gray-600 mb-4">You haven't enrolled in any programs yet.</p>
-                        <Button>Browse Programs</Button>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {enrolledPrograms.map((program) => (
-                        <Card key={program.id} className="hover:shadow-lg transition-shadow">
-                          <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <CardTitle className="text-lg">{program.programme.title}</CardTitle>
-                                <CardDescription className="line-clamp-2 mt-1">
-                                  {program.programme.description}
-                                </CardDescription>
-                              </div>
-                              <Badge className={getStatusColor(program.enrollment.status)}>
-                                {program.enrollment.status}
-                              </Badge>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            {/* Progress Bar */}
-                            <div className="space-y-2">
-                              <div className="flex justify-between text-sm">
-                                <span>Progress</span>
-                                <span className="font-medium">{program.progress.totalProgress}%</span>
-                              </div>
-                              <Progress value={program.progress.totalProgress} className="h-2" />
-                            </div>
-
-                            {/* Program Details */}
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                              <div className="flex items-center space-x-2">
-                                <Calendar className="h-4 w-4 text-gray-500" />
-                                <div>
-                                  <p className="text-gray-600">Enrolled</p>
-                                  <p className="font-medium">{formatDate(program.enrollment.enrollmentDate)}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <Clock className="h-4 w-4 text-gray-500" />
-                                <div>
-                                  <p className="text-gray-600">Time Spent</p>
-                                  <p className="font-medium">{formatDuration(program.progress.timeSpent)}</p>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Program Category and Level */}
-                            <div className="flex items-center justify-between pt-2 border-t">
-                              <div className="flex items-center space-x-2">
-                                <Badge variant="secondary" className="text-xs">
-                                  {program.programme.category}
-                                </Badge>
-                                <Badge variant="outline" className="text-xs">
-                                  {program.programme.level}
-                                </Badge>
-                              </div>
-                              <Button variant="outline" size="sm">
-                                Continue Learning
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </TabsContent>
 
             {/* Profile Tab - Contains personal, academic, and professional info */}
             <TabsContent value="profile" className="p-6">

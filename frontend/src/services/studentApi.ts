@@ -327,7 +327,7 @@ export const studentApi = {
   // Get student analytics
   async getAnalytics(): Promise<StudentAnalytics> {
     try {
-      const response = await api.get<ApiResponse<StudentAnalytics>>('/student/analytics');
+      const response = await api.get<ApiResponse<StudentAnalytics>>('/analytics/student');
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to fetch analytics');
       }
@@ -339,9 +339,9 @@ export const studentApi = {
   },
 
   // Get profile photo URL
-  async getProfilePhotoUrl(): Promise<{ profilePictureUrl: string }> {
+  async getProfilePhotoUrl(): Promise<{ profilePhotoUrl: string; source: string; isCustom: boolean; isInitials: boolean; hasCustomPhoto: boolean }> {
     try {
-      const response = await api.get<ApiResponse<{ profilePictureUrl: string }>>('/student/profile/photo-url');
+      const response = await api.get<ApiResponse<{ profilePhotoUrl: string; source: string; isCustom: boolean; isInitials: boolean; hasCustomPhoto: boolean }>>('/student/profile/photo-url');
       if (!response.data.success) {
         throw new Error(response.data.message || 'Failed to get profile photo URL');
       }

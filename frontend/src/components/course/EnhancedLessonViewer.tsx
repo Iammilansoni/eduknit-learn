@@ -317,53 +317,182 @@ const EnhancedLessonViewer: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const renderVideoPlayer = () => (
-    <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
-      <video
-        ref={videoRef}
-        className="w-full h-full"
-        controls
-        onTimeUpdate={(e) => handleVideoProgress(e.currentTarget.currentTime)}
-        onPlay={handleVideoPlay}
-        onPause={handleVideoPause}
-        onLoadedMetadata={() => {
-          if (videoRef.current) {
-            setCurrentTime(0);
-          }
-        }}
-      >
-        <source src={lesson?.videoUrl} type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
-      
-      {/* Custom Video Controls */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-        <div className="flex items-center justify-between text-white">
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleMute}
-              className="text-white hover:bg-white/20"
-            >
-              {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </Button>
-            <span className="text-sm">{formatTime(currentTime)} / {formatTime(lesson?.videoDuration || 0)}</span>
+  // Helper function to detect video source type and format URL
+  const getVideoEmbedUrl = (url: string): { embedUrl: string; type: 'youtube' | 'vimeo' | 'drive' | 'direct' } => {
+    if (!url) return { embedUrl: '', type: 'direct' };
+
+    // YouTube URL patterns
+    const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const youtubeMatch = url.match(youtubeRegex);
+    if (youtubeMatch) {
+      return {
+        embedUrl: `https://www.youtube.com/embed/${youtubeMatch[1]}?enablejsapi=1&modestbranding=1&rel=0`,
+        type: 'youtube'
+      };
+    }
+
+    // Vimeo URL patterns
+    const vimeoRegex = /(?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)/;
+    const vimeoMatch = url.match(vimeoRegex);
+    if (vimeoMatch) {
+      return {
+        embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}?byline=0&portrait=0`,
+        type: 'vimeo'
+      };
+    }
+
+    // Google Drive URL patterns (multiple formats)
+    const driveRegex = /(?:https?:\/\/)?drive\.google\.com\/(?:file\/d\/([a-zA-Z0-9_-]+)|open\?id=([a-zA-Z0-9_-]+))/;
+    const driveMatch = url.match(driveRegex);
+    if (driveMatch) {
+      const fileId = driveMatch[1] || driveMatch[2];
+      return {
+        embedUrl: `https://drive.google.com/file/d/${fileId}/preview`,
+        type: 'drive'
+      };
+    }
+
+    // Check if it's already an embed URL
+    if (url.includes('youtube.com/embed/') || url.includes('player.vimeo.com/') || url.includes('drive.google.com') && url.includes('/preview')) {
+      if (url.includes('youtube.com/embed/')) {
+        return { embedUrl: url, type: 'youtube' };
+      } else if (url.includes('player.vimeo.com/')) {
+        return { embedUrl: url, type: 'vimeo' };
+      } else if (url.includes('drive.google.com')) {
+        return { embedUrl: url, type: 'drive' };
+      }
+    }
+
+    // Direct video file or other embed URL
+    return { embedUrl: url, type: 'direct' };
+  };
+
+  const renderVideoPlayer = () => {
+    const { embedUrl, type } = getVideoEmbedUrl(lesson?.videoUrl || '');
+
+    if (!embedUrl) {
+      return (
+        <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <Video className="h-12 w-12 mx-auto mb-2" />
+            <p>No video URL provided</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleFullscreen}
-              className="text-white hover:bg-white/20"
-            >
-              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </Button>
+        </div>
+      );
+    }
+
+    // For YouTube, Vimeo, and Google Drive, use iframe embed
+    if (type === 'youtube' || type === 'vimeo' || type === 'drive') {
+      return (
+        <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+          <iframe
+            src={embedUrl}
+            className="w-full h-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            allowFullScreen
+            loading="lazy"
+            title={lesson?.title || 'Video Content'}
+            onLoad={() => {
+              // Track video load
+              setCurrentTime(0);
+              console.log('Video iframe loaded:', { type, embedUrl });
+            }}
+            onError={(e) => {
+              console.error('Video iframe error:', e);
+              toast({
+                title: 'Video Load Error',
+                description: `Unable to load ${type} video. Please check the URL or try again.`,
+                variant: 'destructive',
+              });
+            }}
+          />
+          
+          {/* Video info overlay */}
+          <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-md text-sm">
+            <div className="flex items-center space-x-2">
+              <Video className="h-4 w-4" />
+              <span className="capitalize">{type}</span>
+              {lesson?.videoDuration && (
+                <>
+                  <span>•</span>
+                  <span>{formatTime(lesson.videoDuration)}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Debug info for development */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="absolute top-4 right-4 bg-blue-600/80 text-white px-2 py-1 rounded text-xs">
+              <div>Type: {type}</div>
+              <div>Original: {lesson?.videoUrl?.substring(0, 50)}...</div>
+              <div>Embed: {embedUrl.substring(0, 50)}...</div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // For direct video files, use HTML5 video element
+    return (
+      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+        <video
+          ref={videoRef}
+          className="w-full h-full"
+          controls
+          controlsList="nodownload"
+          onTimeUpdate={(e) => handleVideoProgress(e.currentTarget.currentTime)}
+          onPlay={handleVideoPlay}
+          onPause={handleVideoPause}
+          onLoadedMetadata={() => {
+            if (videoRef.current) {
+              setCurrentTime(0);
+            }
+          }}
+          onError={(e) => {
+            console.error('Video load error:', e);
+            toast({
+              title: 'Video Error',
+              description: 'Unable to load video. Please check the URL format.',
+              variant: 'destructive',
+            });
+          }}
+        >
+          <source src={embedUrl} type="video/mp4" />
+          <source src={embedUrl} type="video/webm" />
+          <source src={embedUrl} type="video/ogg" />
+          Your browser does not support the video tag.
+        </video>
+        
+        {/* Custom Video Controls */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+          <div className="flex items-center justify-between text-white">
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleMute}
+                className="text-white hover:bg-white/20"
+              >
+                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </Button>
+              <span className="text-sm">{formatTime(currentTime)} / {formatTime(lesson?.videoDuration || 0)}</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleFullscreen}
+                className="text-white hover:bg-white/20"
+              >
+                {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderTextContent = () => (
     <div className="space-y-6">

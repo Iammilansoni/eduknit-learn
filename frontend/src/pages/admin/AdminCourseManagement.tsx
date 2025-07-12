@@ -209,7 +209,6 @@ const AdminCourseManagement = () => {
         credentials: 'include',
         body: JSON.stringify({
           ...data,
-          slug: data.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
           isActive: true,
           createdBy: user?.id,
           lastModifiedBy: user?.id
@@ -217,7 +216,8 @@ const AdminCourseManagement = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create course');
+        const errorData = await response.json().catch(() => ({ message: 'Failed to create course' }));
+        throw new Error(errorData.message || 'Failed to create course');
       }
 
       const result = await response.json();
@@ -250,32 +250,83 @@ const AdminCourseManagement = () => {
   };
 
   // Delete course
-  const handleDeleteCourse = async (courseId: string) => {
-    if (!confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
+  const handleDeleteCourse = async (courseId: string, forceDelete: boolean = false) => {
+    const confirmMessage = forceDelete 
+      ? 'Are you sure you want to force delete this course? This will also delete all enrollments and cannot be undone.'
+      : 'Are you sure you want to delete this course? This action cannot be undone.';
+      
+    if (!confirm(confirmMessage)) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/admin/courses/${courseId}`, {
+      console.log('Attempting to delete course with ID:', courseId, 'Force:', forceDelete);
+      const url = forceDelete 
+        ? `/api/admin/courses/${courseId}?force=true`
+        : `/api/admin/courses/${courseId}`;
+        
+      const response = await fetch(url, {
         method: 'DELETE',
         credentials: 'include'
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to delete course');
-      }
-
-      toast({
-        title: "Success",
-        description: "Course deleted successfully"
+      console.log('Delete response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
-      fetchCourses();
+      if (!response.ok) {
+        let errorMessage = 'Failed to delete course';
+        try {
+          const errorData = await response.json();
+          console.log('Error response data:', errorData);
+          // Handle different error response formats
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error && errorData.error.message) {
+            errorMessage = errorData.error.message;
+          } else if (errorData.errors && errorData.errors.length > 0) {
+            errorMessage = errorData.errors[0].message || errorMessage;
+          }
+        } catch (jsonError) {
+          console.log('Could not parse error response as JSON:', jsonError);
+          const textError = await response.text();
+          console.log('Error response text:', textError);
+        }
+        
+        // If it's an enrollment error and not already a force delete, offer force delete option
+        if (!forceDelete && errorMessage.includes('active enrollments')) {
+          const forceDeleteConfirm = confirm(
+            `${errorMessage}\n\nWould you like to force delete this course along with all its enrollments?`
+          );
+          if (forceDeleteConfirm) {
+            return handleDeleteCourse(courseId, true);
+          }
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('Delete success response:', result);
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: forceDelete 
+            ? "Course and all enrollments deleted successfully"
+            : "Course deleted successfully"
+        });
+        fetchCourses();
+      } else {
+        throw new Error(result.message || 'Failed to delete course');
+      }
     } catch (error) {
       console.error('Error deleting course:', error);
       toast({
         title: "Error",
-        description: "Failed to delete course",
+        description: error instanceof Error ? error.message : "Failed to delete course",
         variant: "destructive"
       });
     }
@@ -372,7 +423,6 @@ const AdminCourseManagement = () => {
         credentials: 'include',
         body: JSON.stringify({
           ...data,
-          slug: data.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
           lastModifiedBy: user?.id
         }),
       });

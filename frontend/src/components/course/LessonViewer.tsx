@@ -76,6 +76,56 @@ const LessonViewer: React.FC = () => {
   const [quizTimeRemaining, setQuizTimeRemaining] = useState<number | null>(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizResults, setQuizResults] = useState<any>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
+
+  // Helper function to convert URLs to embed URLs
+  const getVideoEmbedUrl = (url: string) => {
+    try {
+      // YouTube URLs
+      if (url.includes('youtube.com/watch')) {
+        const urlObj = new URL(url);
+        const videoId = urlObj.searchParams.get('v');
+        if (videoId) {
+          return `https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}`;
+        }
+      } else if (url.includes('youtu.be/')) {
+        const videoId = url.split('youtu.be/')[1]?.split('?')[0];
+        if (videoId) {
+          return `https://www.youtube.com/embed/${videoId}?enablejsapi=1&origin=${window.location.origin}`;
+        }
+      }
+      
+      // Vimeo URLs
+      if (url.includes('vimeo.com/')) {
+        const videoId = url.split('vimeo.com/')[1]?.split('?')[0];
+        if (videoId) {
+          return `https://player.vimeo.com/video/${videoId}?title=0&byline=0&portrait=0`;
+        }
+      }
+      
+      // Google Drive URLs
+      if (url.includes('drive.google.com/file/d/')) {
+        const fileId = url.split('/file/d/')[1]?.split('/')[0];
+        if (fileId) {
+          return `https://drive.google.com/file/d/${fileId}/preview`;
+        }
+      }
+      
+      // For direct video files, return as-is
+      return url;
+    } catch (error) {
+      console.error('Error processing video URL:', error);
+      return url;
+    }
+  };
+
+  // Check if URL is an embeddable video
+  const isEmbeddableVideo = (url: string) => {
+    return url.includes('youtube.com') || 
+           url.includes('youtu.be') || 
+           url.includes('vimeo.com') || 
+           url.includes('drive.google.com');
+  };
 
   // Fetch lesson content
   const { data: lessonData, isLoading, error } = useQuery({
@@ -237,16 +287,41 @@ const LessonViewer: React.FC = () => {
           {/* Video Player */}
           {lesson.type === 'VIDEO' && lesson.videoUrl && (
             <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              <video
-                className="w-full h-full"
-                controls
-                onTimeUpdate={(e) => handleVideoProgress(e.currentTarget.currentTime)}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-              >
-                <source src={lesson.videoUrl} type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
+              {isEmbeddableVideo(lesson.videoUrl) ? (
+                <iframe
+                  src={getVideoEmbedUrl(lesson.videoUrl)}
+                  className="w-full h-full"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  title="Video Player"
+                  onLoad={() => setVideoError(null)}
+                  onError={() => setVideoError('Failed to load embedded video')}
+                />
+              ) : (
+                <video
+                  className="w-full h-full"
+                  controls
+                  onTimeUpdate={(e) => handleVideoProgress(e.currentTarget.currentTime)}
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  onError={() => setVideoError('Failed to load video file')}
+                  onLoadStart={() => setVideoError(null)}
+                >
+                  <source src={lesson.videoUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              )}
+              
+              {/* Video Error Display */}
+              {videoError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 text-white">
+                  <div className="text-center">
+                    <p className="mb-2">{videoError}</p>
+                    <p className="text-sm text-gray-300">Video URL: {lesson.videoUrl}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

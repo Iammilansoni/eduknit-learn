@@ -120,18 +120,16 @@ const Navbar = () => {
 
   return (
     <nav className="bg-gray-200 dark:bg-gray-900 sticky top-0 z-50 shadow-sm">
- 
-
-  <div className="max-w-7xl mx-auto px-6 lg:px-8">
-    {/* Increased height to h-28 (7rem/112px) */}
-    <div className="flex items-center justify-between h-28">
-      <Link to="/" className="flex items-center">
-        <img 
-          src="/uploads/logo.png" 
-          alt="EduKnit Logo" 
-          className="h-16 w-auto"  // Increased logo size
-        />
-      </Link>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Responsive height */}
+        <div className="flex items-center justify-between h-16 sm:h-20 md:h-24 lg:h-28">
+          <Link to="/" className="flex items-center flex-shrink-0">
+            <img 
+              src="/uploads/logo.png" 
+              alt="EduKnit Logo" 
+              className="h-10 sm:h-12 md:h-14 lg:h-16 w-auto"  // Responsive logo size
+            />
+          </Link>
 
 
           <div className="hidden md:flex items-center space-x-2">

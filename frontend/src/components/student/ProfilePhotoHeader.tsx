@@ -40,6 +40,15 @@ const ProfilePhotoHeader: React.FC<ProfilePhotoHeaderProps> = ({
     queryFn: studentAPI.getProfilePhotoUrl,
   });
 
+  // Debug logging (temporary)
+  React.useEffect(() => {
+    if (photoData) {
+      console.log('ProfilePhotoHeader - Photo URL:', photoData.profilePhotoUrl);
+      console.log('ProfilePhotoHeader - Has Custom Photo:', photoData.hasCustomPhoto);
+      console.log('ProfilePhotoHeader - Source:', photoData.source);
+    }
+  }, [photoData]);
+
   // Upload mutation
   const uploadMutation = useMutation({
     mutationFn: (file: File) => {
@@ -142,8 +151,8 @@ const ProfilePhotoHeader: React.FC<ProfilePhotoHeaderProps> = ({
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  const currentPhotoUrl = previewUrl || photoData?.data?.profilePhotoUrl;
-  const hasCustomPhoto = photoData?.data?.hasCustomPhoto && !previewUrl;
+  const currentPhotoUrl = previewUrl || photoData?.profilePhotoUrl;
+  const hasCustomPhoto = photoData?.hasCustomPhoto && !previewUrl;
 
   // Size configurations
   const sizeClasses = {

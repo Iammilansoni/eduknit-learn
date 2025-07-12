@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -61,6 +61,14 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
     queryFn: studentAPI.getProfilePhotoUrl,
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  // Debug logging (temporary)
+  useEffect(() => {
+    if (photoData) {
+      console.log('DashboardSidebar - Photo URL:', photoData.profilePhotoUrl);
+      console.log('DashboardSidebar - Source:', photoData.source);
+    }
+  }, [photoData]);
   
   const links = [
     { to: '/student-dashboard', icon: Home, label: 'Dashboard' },
@@ -121,7 +129,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({ className }) => {
             <div className="relative">
               <Avatar className="h-14 w-14 flex-shrink-0 ring-2 ring-eduBlue-100 dark:ring-eduBlue-900/30 shadow-sm">
                 <AvatarImage 
-                  src={photoData?.data?.profilePhotoUrl || user?.profilePicture} 
+                  src={photoData?.profilePhotoUrl || user?.profilePicture} 
                   alt={user?.firstName || user?.username || 'User'} 
                   className="object-cover object-center h-full w-full rounded-full" 
                 />

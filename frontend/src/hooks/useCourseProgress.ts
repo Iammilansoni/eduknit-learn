@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { progressApi } from '@/services/progressApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
 import { useQueryClient } from '@tanstack/react-query';
@@ -65,6 +65,21 @@ export interface DashboardData {
   metrics: DashboardMetrics;
   upcomingDeadlines: UpcomingDeadline[];
   recentActivity: RecentActivity[];
+}
+
+export interface RealTimeProgressUpdate {
+  courseId: string;
+  progress: number;
+  status: 'IN_PROGRESS' | 'COMPLETED' | 'NOT_STARTED';
+  lastActivity: string;
+  timeSpent?: number;
+}
+
+export interface WebSocketMessage {
+  type: 'PROGRESS_UPDATE' | 'COURSE_COMPLETION' | 'LESSON_COMPLETION' | 'QUIZ_SUBMISSION';
+  data: any;
+  timestamp: string;
+  userId: string;
 }
 
 export interface SmartProgressData {
@@ -415,6 +430,493 @@ export const useUpdateEnrollmentStatus = () => {
     updateStatus,
     loading,
     error
+  };
+};
+
+// Hook for real-time dashboard data with WebSocket integration
+export const useRealTimeDashboardData = () => {
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const { user } = useAuth();
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
+  const reconnectDelay = 3000;
+
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Call the backend API for dashboard data
+      const response = await progressApi.getDashboardData(user.id);
+      setDashboardData(response.data);
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  const connectWebSocket = useCallback(() => {
+    if (!user?.id) return;
+
+    try {
+      // Use environment variable for WebSocket URL or fallback to localhost
+      const wsUrl = process.env.VITE_WS_URL || 'ws://localhost:8080';
+      const ws = new WebSocket(`${wsUrl}/ws/progress/${user.id}`);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected for real-time progress updates');
+        setIsConnected(true);
+        reconnectAttempts.current = 0;
+        
+        // Send authentication message
+        ws.send(JSON.stringify({
+          type: 'AUTH',
+          userId: user.id,
+          timestamp: new Date().toISOString()
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message: WebSocketMessage = JSON.parse(event.data);
+          
+          // Only process messages for the current user
+          if (message.userId !== user.id) return;
+
+          switch (message.type) {
+            case 'PROGRESS_UPDATE':
+              const progressUpdate = message.data as RealTimeProgressUpdate;
+              setDashboardData(prev => {
+                if (!prev) return prev;
+                
+                const updatedCourses = prev.courses.map(course => {
+                  if (course.courseId === progressUpdate.courseId) {
+                    return {
+                      ...course,
+                      progress: progressUpdate.progress,
+                      status: progressUpdate.status
+                    };
+                  }
+                  return course;
+                });
+                
+                return {
+                  ...prev,
+                  courses: updatedCourses
+                };
+              });
+              break;
+              
+            case 'COURSE_COMPLETION':
+              // Handle course completion
+              setDashboardData(prev => {
+                if (!prev) return prev;
+                
+                const courseId = message.data.courseId;
+                const updatedCourses = prev.courses.map(course => {
+                  if (course.courseId === courseId) {
+                    return {
+                      ...course,
+                      progress: 100,
+                      status: 'COMPLETED' as const
+                    };
+                  }
+                  return course;
+                });
+                
+                return {
+                  ...prev,
+                  courses: updatedCourses,
+                  metrics: {
+                    ...prev.metrics,
+                    completedCoursesCount: prev.metrics.completedCoursesCount + 1
+                  }
+                };
+              });
+              break;
+              
+            case 'LESSON_COMPLETION':
+            case 'QUIZ_SUBMISSION':
+              // Refresh dashboard data for lesson/quiz updates
+              fetchDashboardData();
+              break;
+              
+            default:
+              console.log('Unknown WebSocket message type:', message.type);
+          }
+        } catch (err) {
+          console.error('Failed to process WebSocket message:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        
+        // Attempt to reconnect if not exceeded max attempts
+        if (reconnectAttempts.current < maxReconnectAttempts) {
+          reconnectAttempts.current++;
+          console.log(`Attempting to reconnect... (${reconnectAttempts.current}/${maxReconnectAttempts})`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket();
+          }, reconnectDelay);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setError('Connection error. Real-time updates may not work.');
+      };
+
+      wsRef.current = ws;
+    } catch (err) {
+      console.error('Failed to create WebSocket connection:', err);
+      setError('Failed to establish real-time connection');
+    }
+  }, [user?.id, fetchDashboardData]);
+
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    setIsConnected(false);
+  }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchDashboardData();
+      connectWebSocket();
+    }
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, [user?.id, fetchDashboardData, connectWebSocket, disconnectWebSocket]);
+
+  const refetch = useCallback(() => {
+    if (user?.id) {
+      fetchDashboardData();
+    }
+  }, [user?.id, fetchDashboardData]);
+
+  const forceReconnect = useCallback(() => {
+    disconnectWebSocket();
+    if (user?.id) {
+      setTimeout(() => {
+        connectWebSocket();
+      }, 1000);
+    }
+  }, [user?.id, connectWebSocket, disconnectWebSocket]);
+
+  return {
+    dashboardData,
+    loading,
+    error,
+    isConnected,
+    refetch,
+    forceReconnect
+  };
+};
+
+// Hook for real-time course progress tracking
+export const useRealTimeCourseProgress = (courseId: string) => {
+  const [courseProgress, setCourseProgress] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const { user } = useAuth();
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
+  const reconnectDelay = 3000;
+
+  const fetchCourseProgress = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (!user?.id || !courseId) {
+        throw new Error('User ID and Course ID are required');
+      }
+
+      // Call the backend API for course progress
+      const response = await progressApi.getCourseProgress(user.id, courseId);
+      setCourseProgress(response.data);
+    } catch (err) {
+      console.error('Failed to fetch course progress:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch course progress');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, courseId]);
+
+  const connectWebSocket = useCallback(() => {
+    if (!user?.id || !courseId) return;
+
+    try {
+      // Use environment variable for WebSocket URL or fallback to localhost
+      const wsUrl = process.env.VITE_WS_URL || 'ws://localhost:8080';
+      const ws = new WebSocket(`${wsUrl}/ws/course/${courseId}/progress/${user.id}`);
+      
+      ws.onopen = () => {
+        console.log(`WebSocket connected for course ${courseId} progress updates`);
+        setIsConnected(true);
+        reconnectAttempts.current = 0;
+        
+        // Send authentication message
+        ws.send(JSON.stringify({
+          type: 'AUTH',
+          userId: user.id,
+          courseId: courseId,
+          timestamp: new Date().toISOString()
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message: WebSocketMessage = JSON.parse(event.data);
+          
+          // Only process messages for the current user and course
+          if (message.userId !== user.id) return;
+
+          switch (message.type) {
+            case 'PROGRESS_UPDATE':
+              const progressUpdate = message.data as RealTimeProgressUpdate;
+              if (progressUpdate.courseId === courseId) {
+                setCourseProgress(prev => ({
+                  ...prev,
+                  progress: progressUpdate.progress,
+                  status: progressUpdate.status,
+                  lastActivity: progressUpdate.lastActivity,
+                  timeSpent: progressUpdate.timeSpent || prev?.timeSpent
+                }));
+              }
+              break;
+              
+            case 'LESSON_COMPLETION':
+            case 'QUIZ_SUBMISSION':
+              // Refresh course progress for lesson/quiz updates
+              if (message.data.courseId === courseId) {
+                fetchCourseProgress();
+              }
+              break;
+              
+            default:
+              console.log('Unknown WebSocket message type:', message.type);
+          }
+        } catch (err) {
+          console.error('Failed to process WebSocket message:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        
+        // Attempt to reconnect if not exceeded max attempts
+        if (reconnectAttempts.current < maxReconnectAttempts) {
+          reconnectAttempts.current++;
+          console.log(`Attempting to reconnect... (${reconnectAttempts.current}/${maxReconnectAttempts})`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket();
+          }, reconnectDelay);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setError('Connection error. Real-time updates may not work.');
+      };
+
+      wsRef.current = ws;
+    } catch (err) {
+      console.error('Failed to create WebSocket connection:', err);
+      setError('Failed to establish real-time connection');
+    }
+  }, [user?.id, courseId, fetchCourseProgress]);
+
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    setIsConnected(false);
+  }, []);
+
+  useEffect(() => {
+    if (user?.id && courseId) {
+      fetchCourseProgress();
+      connectWebSocket();
+    }
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, [user?.id, courseId, fetchCourseProgress, connectWebSocket, disconnectWebSocket]);
+
+  const refetch = useCallback(() => {
+    if (user?.id && courseId) {
+      fetchCourseProgress();
+    }
+  }, [user?.id, courseId, fetchCourseProgress]);
+
+  const forceReconnect = useCallback(() => {
+    disconnectWebSocket();
+    if (user?.id && courseId) {
+      setTimeout(() => {
+        connectWebSocket();
+      }, 1000);
+    }
+  }, [user?.id, courseId, connectWebSocket, disconnectWebSocket]);
+
+  return {
+    courseProgress,
+    loading,
+    error,
+    isConnected,
+    refetch,
+    forceReconnect
+  };
+};
+
+// Hook for real-time progress notifications
+export const useRealTimeProgressNotifications = () => {
+  const [notifications, setNotifications] = useState<WebSocketMessage[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const { user } = useAuth();
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
+  const reconnectDelay = 3000;
+
+  const connectWebSocket = useCallback(() => {
+    if (!user?.id) return;
+
+    try {
+      // Use environment variable for WebSocket URL or fallback to localhost
+      const wsUrl = process.env.VITE_WS_URL || 'ws://localhost:8080';
+      const ws = new WebSocket(`${wsUrl}/ws/notifications/${user.id}`);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected for real-time notifications');
+        setIsConnected(true);
+        reconnectAttempts.current = 0;
+        
+        // Send authentication message
+        ws.send(JSON.stringify({
+          type: 'AUTH',
+          userId: user.id,
+          timestamp: new Date().toISOString()
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message: WebSocketMessage = JSON.parse(event.data);
+          
+          // Only process messages for the current user
+          if (message.userId !== user.id) return;
+
+          setNotifications(prev => [message, ...prev.slice(0, 9)]); // Keep last 10 notifications
+        } catch (err) {
+          console.error('Failed to process WebSocket notification:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        
+        // Attempt to reconnect if not exceeded max attempts
+        if (reconnectAttempts.current < maxReconnectAttempts) {
+          reconnectAttempts.current++;
+          console.log(`Attempting to reconnect... (${reconnectAttempts.current}/${maxReconnectAttempts})`);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket();
+          }, reconnectDelay);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+
+      wsRef.current = ws;
+    } catch (err) {
+      console.error('Failed to create WebSocket connection:', err);
+    }
+  }, [user?.id]);
+
+  const disconnectWebSocket = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    setIsConnected(false);
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const markNotificationAsRead = useCallback((index: number) => {
+    setNotifications(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      connectWebSocket();
+    }
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, [user?.id, connectWebSocket, disconnectWebSocket]);
+
+  const forceReconnect = useCallback(() => {
+    disconnectWebSocket();
+    if (user?.id) {
+      setTimeout(() => {
+        connectWebSocket();
+      }, 1000);
+    }
+  }, [user?.id, connectWebSocket, disconnectWebSocket]);
+
+  return {
+    notifications,
+    isConnected,
+    clearNotifications,
+    markNotificationAsRead,
+    forceReconnect
   };
 };
 

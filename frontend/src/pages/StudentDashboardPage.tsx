@@ -240,8 +240,8 @@ const StudentDashboardPage = () => {
           completedCourses={dashboard?.completedCourses || 0}
           totalProgress={dashboard?.averageProgress || 0}
           totalHours={dashboard?.totalHoursLearned || 0}
-          currentStreak={progressDashboard?.currentStreak || 0}
-          totalPoints={progressDashboard?.totalPoints || 0}
+          currentStreak={dashboard?.currentStreak || 0}
+          totalPoints={dashboard?.totalPoints || 0}
         />
 
         {/* Quick Actions Row */}
@@ -387,10 +387,10 @@ const StudentDashboardPage = () => {
               
               <TabsContent value="analytics" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                  <StreakCounter currentStreak={progressDashboard?.currentStreak || 0} />
+                  <StreakCounter currentStreak={dashboard?.currentStreak || 0} />
                   <PointsAndLevel 
-                    totalPoints={progressDashboard?.totalPoints || 0}
-                    level={progressDashboard?.level || 1}
+                    totalPoints={dashboard?.totalPoints || 0}
+                    level={dashboard?.level || 1}
                   />
                 </div>
                 <div className="grid grid-cols-1 gap-6">
@@ -500,8 +500,8 @@ const StudentDashboardPage = () => {
               completedCourses={dashboard?.completedCourses || 0}
               averageProgress={dashboard?.averageProgress || 0}
               totalHoursLearned={dashboard?.totalHoursLearned || 0}
-              currentStreak={progressDashboard?.currentStreak || 0}
-              totalPoints={progressDashboard?.totalPoints || 0}
+              currentStreak={dashboard?.currentStreak || 0}
+              totalPoints={dashboard?.totalPoints || 0}
             />
           </div>
           
