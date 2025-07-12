@@ -171,22 +171,34 @@ export const getStudentDashboard = async (req: AuthenticatedRequest, res: Respon
 
     const dashboardData = {
       student: {
-        ...student.toJSON(),
-        profile: profile || null
+        id: (student._id as any).toString(),
+        name: `${student.firstName} ${student.lastName}`,
+        email: student.email,
+        profilePicture: student.profilePicture,
+        enrollmentStatus: 'active',
+        isProfileComplete: profile?.statistics?.profileCompleteness === 100,
+        completionPercentage: profile?.statistics?.profileCompleteness || 0
       },
       stats: {
         totalCourses: dashboardOverview.enrolledCourses.total,
         completedCourses: dashboardOverview.enrolledCourses.completed,
         inProgressCourses: dashboardOverview.enrolledCourses.active,
-        pausedCourses: dashboardOverview.enrolledCourses.paused,
-        averageProgress: dashboardOverview.overallProgress,
-        totalTimeSpent: dashboardOverview.totalTimeSpent,
-        certificatesEarned: dashboardOverview.certificatesEarned,
-        learningStreak: dashboardOverview.learningStreak,
-        longestStreak: dashboardOverview.longestStreak,
-        totalPoints: dashboardOverview.totalPoints,
-        level: dashboardOverview.level
+        totalStudyTime: dashboardOverview.totalTimeSpent,
+        lessonsCompleted: recentCompletions.length,
+        overallProgress: dashboardOverview.overallProgress,
+        currentStreak: dashboardOverview.learningStreak,
+        longestStreak: dashboardOverview.longestStreak
       },
+      // Dashboard overview fields for the overview cards
+      totalEnrollments: dashboardOverview.enrolledCourses.total,
+      completedCourses: dashboardOverview.enrolledCourses.completed,
+      averageProgress: dashboardOverview.overallProgress,
+      totalHoursLearned: Math.round(dashboardOverview.totalTimeSpent / 60), // Convert minutes to hours
+      currentStreak: dashboardOverview.learningStreak,
+      totalPoints: dashboardOverview.totalPoints,
+      level: dashboardOverview.level,
+      
+      // Additional dashboard data
       activeLearningPaths: dashboardOverview.activeLearningPaths,
       activeEnrollments: activeEnrollments.slice(0, 6), // Limit to 6 for dashboard
       recentActivity,
@@ -292,9 +304,15 @@ export const getStudentProfile = async (req: AuthenticatedRequest, res: Response
  */
 export const updateStudentProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
+    logger.info('Profile update request:', {
+      studentId: req.user?.id,
+      body: JSON.stringify(req.body, null, 2)
+    });
+
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      logger.warn('Profile validation errors:', errors.array());
       validationError(res, 'Validation failed', errors.array());
       return;
     }
@@ -755,18 +773,43 @@ export const getStudentAnalytics = async (req: AuthenticatedRequest, res: Respon
     // Get dashboard overview for summary stats
     const dashboardOverview = await AnalyticsService.getDashboardOverview(studentId);
 
+    // Get quiz analytics
+    const quizAnalytics = await AnalyticsService.getQuizAnalytics(studentId);
+
+    // Get student profile for additional gamification data
+    const profile = await StudentProfile.findOne({ userId: studentId });
+
     const analytics = {
       overview: {
-        totalCourses: dashboardOverview.enrolledCourses.total,
-        activeCourses: dashboardOverview.enrolledCourses.active,
+        totalEnrollments: dashboardOverview.enrolledCourses.total,
         completedCourses: dashboardOverview.enrolledCourses.completed,
-        overallProgress: dashboardOverview.overallProgress,
-        learningStreak: dashboardOverview.learningStreak,
-        longestStreak: dashboardOverview.longestStreak,
+        activeEnrollments: dashboardOverview.enrolledCourses.active,
+        certificatesEarned: dashboardOverview.certificatesEarned,
+        totalTimeSpent: dashboardOverview.totalTimeSpent,
+        averageProgress: dashboardOverview.overallProgress
+      },
+      gamification: {
         totalPoints: dashboardOverview.totalPoints,
         level: dashboardOverview.level,
-        totalTimeSpent: dashboardOverview.totalTimeSpent
+        badges: profile?.gamification?.badges || [],
+        streaks: {
+          currentLoginStreak: profile?.gamification?.streaks?.currentLoginStreak || 0,
+          longestLoginStreak: profile?.gamification?.streaks?.longestLoginStreak || 0,
+          currentLearningStreak: dashboardOverview.learningStreak,
+          longestLearningStreak: dashboardOverview.longestStreak
+        }
       },
+      quiz: {
+        quizzesTaken: quizAnalytics.quizzesTaken,
+        averageScore: quizAnalytics.averageScore,
+        passRate: quizAnalytics.passRate,
+        bestScore: quizAnalytics.bestScore,
+        bestStreak: quizAnalytics.bestStreak,
+        recentQuizzes: quizAnalytics.recentQuizzes
+      },
+      progressOverTime: calculateProgressOverTime(analyticsData.dailyEngagement),
+      categoryProgress: calculateCategoryProgress(analyticsData.courseWiseProgress),
+      profileCompleteness: profile?.statistics?.profileCompleteness || 0,
       charts: {
         courseWiseProgress: analyticsData.courseWiseProgress,
         timeSpentPerCourse: analyticsData.timeSpentPerCourse,
@@ -1223,3 +1266,133 @@ export const updateLessonProgress = async (req: AuthenticatedRequest, res: Respo
     serverError(res, 'Failed to update lesson progress');
   }
 };
+
+/**
+ * Update enrollment status
+ */
+export const updateEnrollmentStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const studentId = req.user?.id;
+    const { enrollmentId } = req.params;
+    const { status } = req.body;
+
+    if (!studentId) {
+      return forbidden(res, 'Student ID is required');
+    }
+
+    // Validate status
+    const validStatuses = ['ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED', 'EXPIRED'];
+    if (!validStatuses.includes(status)) {
+      return validationError(res, 'Invalid enrollment status');
+    }
+
+    // Find enrollment and verify ownership
+    const enrollment = await Enrollment.findOne({
+      _id: enrollmentId,
+      studentId
+    });
+
+    if (!enrollment) {
+      return notFound(res, 'Enrollment not found');
+    }
+
+    // Update the enrollment status
+    enrollment.status = status;
+    enrollment.progress.lastActivityDate = new Date();
+    
+    // If marking as completed, ensure progress is 100%
+    if (status === 'COMPLETED' && enrollment.progress.totalProgress < 100) {
+      enrollment.progress.totalProgress = 100;
+    }
+
+    await enrollment.save();
+
+    success(res, {
+      enrollment: {
+        id: enrollment._id,
+        status: enrollment.status,
+        progress: enrollment.progress
+      }
+    }, 'Enrollment status updated successfully');
+
+  } catch (error) {
+    logger.error('Update enrollment status error:', error);
+    serverError(res, 'Failed to update enrollment status');
+  }
+};
+
+/**
+ * Helper function to calculate progress over time
+ */
+function calculateProgressOverTime(dailyEngagement: any[]): Array<{date: string, progress: number, timeSpent: number}> {
+  let cumulativeProgress = 0;
+  
+  return dailyEngagement.map(day => {
+    // Calculate progress based on lessons completed (each lesson = ~5% progress)
+    const dailyProgress = day.lessonsCompleted * 5;
+    cumulativeProgress += dailyProgress;
+    
+    // Cap at 100%
+    cumulativeProgress = Math.min(cumulativeProgress, 100);
+    
+    return {
+      date: day.date,
+      progress: cumulativeProgress,
+      timeSpent: day.timeSpent || 0
+    };
+  });
+}
+
+/**
+ * Helper function to calculate category progress
+ */
+function calculateCategoryProgress(courseWiseProgress: any[]): Array<{category: string, progress: number, value: number}> {
+  // Group courses by category (extract category from title or use course title)
+  const categoryMap = new Map<string, {totalProgress: number, totalTime: number, count: number}>();
+  
+  courseWiseProgress.forEach(course => {
+    // Extract category from course title or use a default category
+    const category = extractCategoryFromTitle(course.title) || 'Programming';
+    
+    const existing = categoryMap.get(category) || {totalProgress: 0, totalTime: 0, count: 0};
+    existing.totalProgress += course.progress || 0;
+    existing.totalTime += course.timeSpent || 0;
+    existing.count += 1;
+    
+    categoryMap.set(category, existing);
+  });
+  
+  return Array.from(categoryMap.entries()).map(([category, data]) => ({
+    category,
+    progress: data.count > 0 ? Math.round(data.totalProgress / data.count) : 0,
+    value: data.totalTime
+  }));
+}
+
+/**
+ * Helper function to extract category from course title
+ */
+function extractCategoryFromTitle(title: string): string {
+  const lowerTitle = title.toLowerCase();
+  
+  if (lowerTitle.includes('javascript') || lowerTitle.includes('js') || lowerTitle.includes('react') || lowerTitle.includes('node')) {
+    return 'JavaScript';
+  }
+  if (lowerTitle.includes('python') || lowerTitle.includes('django') || lowerTitle.includes('flask')) {
+    return 'Python';
+  }
+  if (lowerTitle.includes('java') || lowerTitle.includes('spring')) {
+    return 'Java';
+  }
+  if (lowerTitle.includes('web') || lowerTitle.includes('html') || lowerTitle.includes('css')) {
+    return 'Web Development';
+  }
+  if (lowerTitle.includes('data') || lowerTitle.includes('analytics') || lowerTitle.includes('sql')) {
+    return 'Data Science';
+  }
+  if (lowerTitle.includes('mobile') || lowerTitle.includes('android') || lowerTitle.includes('ios')) {
+    return 'Mobile Development';
+  }
+  
+  return 'Programming';
+}

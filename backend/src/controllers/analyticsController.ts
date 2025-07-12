@@ -340,57 +340,51 @@ export const getStudentAnalytics = async (req: AuthenticatedRequest, res: Respon
     }
 
     // Get user's enrolled courses
-    const enrollments = await Enrollment.find({ userId }).populate('courseId');
+    const enrollments = await Enrollment.find({ studentId: userId }).populate('programmeId');
     
     // Get completed lessons
     const completedLessons = await LessonCompletion.find({ userId });
     
     // Get quiz results
-    const quizResults = await QuizResult.find({ userId });
+    const quizResults = await QuizResult.find({ studentId: userId });
+    
+    // Get student profile
+    const profile = await StudentProfile.findOne({ userId });
     
     // Calculate analytics
     const totalCourses = enrollments.length;
-    const completedCourses = enrollments.filter(e => e.progress.totalProgress >= 100).length;
-    const totalLessons = enrollments.reduce((sum, e) => sum + (e.programmeId as any).lessons?.length || 0, 0);
+    const completedCourses = enrollments.filter(e => e.progress?.totalProgress >= 100).length;
+    const activeCourses = enrollments.filter(e => e.status === 'ACTIVE').length;
     const completedLessonsCount = completedLessons.length;
     const totalQuizzes = quizResults.length;
     const passedQuizzes = quizResults.filter(q => q.score >= 70).length;
     const averageScore = totalQuizzes > 0 ? 
       quizResults.reduce((sum, q) => sum + q.score, 0) / totalQuizzes : 0;
 
-    // Calculate study time (mock data for now)
-    const studyTime = Math.floor(Math.random() * 5000) + 1000; // minutes
+    // Calculate study time from enrollments
+    const studyTime = enrollments.reduce((sum, e) => sum + (e.progress?.timeSpent || 0), 0);
     
-    // Calculate streak (mock data for now)
-    const streakDays = Math.floor(Math.random() * 30) + 1;
+    // Calculate streak from actual lesson completions
+    const streakData = calculateLearningStreak(completedLessons);
     
-    // Calculate level and XP (mock data for now)
-    const currentLevel = Math.floor(studyTime / 100) + 1;
-    const experiencePoints = studyTime;
+    // Calculate level and XP from profile or calculate
+    const currentLevel = profile?.gamification?.level || Math.floor(studyTime / 100) + 1;
+    const experiencePoints = profile?.gamification?.totalPoints || studyTime;
     const nextLevelXP = currentLevel * 100;
 
-    // Weekly progress (mock data for now)
-    const weeklyProgress = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (6 - i));
-      return {
-        date: date.toISOString().split('T')[0],
-        lessonsCompleted: Math.floor(Math.random() * 5) + 1,
-        timeSpent: Math.floor(Math.random() * 180) + 30,
-        quizzesPassed: Math.floor(Math.random() * 3) + 1
-      };
-    });
+    // Calculate weekly progress from actual data
+    const weeklyProgress = calculateWeeklyProgress(completedLessons, quizResults);
 
-    // Course progress
+    // Course progress with actual data
     const courseProgress = enrollments.map(enrollment => {
       const course = enrollment.programmeId as any;
       const courseLessons = course.lessons?.length || 0;
       const completedCourseLessons = completedLessons.filter(
-        l => l.courseId.toString() === course._id.toString()
+        l => l.courseId?.toString() === course._id.toString()
       ).length;
       
       const courseQuizzes = quizResults.filter(
-        q => q.programmeId.toString() === course._id.toString()
+        q => q.programmeId?.toString() === course._id.toString()
       );
       const averageCourseScore = courseQuizzes.length > 0 ?
         courseQuizzes.reduce((sum, q) => sum + q.score, 0) / courseQuizzes.length : 0;
@@ -398,99 +392,321 @@ export const getStudentAnalytics = async (req: AuthenticatedRequest, res: Respon
       return {
         courseId: course._id,
         courseTitle: course.title,
-        progress: courseLessons > 0 ? Math.round((completedCourseLessons / courseLessons) * 100) : 0,
+        progress: enrollment.progress?.totalProgress || 0,
         lessonsCompleted: completedCourseLessons,
         totalLessons: courseLessons,
-        averageScore: Math.round(averageCourseScore)
+        averageScore: Math.round(averageCourseScore),
+        timeSpent: enrollment.progress?.timeSpent || 0,
+        lastAccessed: enrollment.progress?.lastActivityDate || enrollment.enrollmentDate
       };
     });
 
-    // Achievements (mock data for now)
-    const achievements = [
-      {
-        id: '1',
-        title: 'First Steps',
-        description: 'Complete your first lesson',
-        icon: '🎯',
-        earnedAt: completedLessonsCount > 0 ? new Date().toISOString() : '',
-        progress: Math.min(completedLessonsCount, 1),
-        maxProgress: 1
-      },
-      {
-        id: '2',
-        title: 'Quiz Master',
-        description: 'Pass 10 quizzes with 90%+ score',
-        icon: '🏆',
-        earnedAt: passedQuizzes >= 10 ? new Date().toISOString() : '',
-        progress: Math.min(passedQuizzes, 10),
-        maxProgress: 10
-      },
-      {
-        id: '3',
-        title: 'Streak Champion',
-        description: 'Maintain a 7-day learning streak',
-        icon: '🔥',
-        earnedAt: streakDays >= 7 ? new Date().toISOString() : '',
-        progress: Math.min(streakDays, 7),
-        maxProgress: 7
-      },
-      {
-        id: '4',
-        title: 'Course Completer',
-        description: 'Complete your first course',
-        icon: '🎓',
-        earnedAt: completedCourses > 0 ? new Date().toISOString() : '',
-        progress: Math.min(completedCourses, 1),
-        maxProgress: 1
-      },
-      {
-        id: '5',
-        title: 'Time Warrior',
-        description: 'Study for 50 hours total',
-        icon: '⏰',
-        earnedAt: studyTime >= 3000 ? new Date().toISOString() : '',
-        progress: Math.min(studyTime, 3000),
-        maxProgress: 3000
-      }
-    ];
-
-    // Learning streak (mock data for now)
-    const learningStreak = Array.from({ length: 30 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (29 - i));
-      const isActive = i >= (30 - streakDays);
-      return {
-        date: date.toISOString().split('T')[0],
-        active: isActive,
-        minutes: isActive ? Math.floor(Math.random() * 120) + 30 : 0
-      };
-    });
-
-    const analyticsData = {
+    // Calculate achievements based on actual data
+    const achievements = calculateAchievements({
+      completedLessons: completedLessonsCount,
       totalCourses,
       completedCourses,
-      totalLessons,
-      completedLessons: completedLessonsCount,
-      totalQuizzes,
       passedQuizzes,
-      averageScore: Math.round(averageScore),
+      quizResults,
+      streakDays: streakData.currentStreak,
       studyTime,
-      streakDays,
-      currentLevel,
-      experiencePoints,
-      nextLevelXP,
-      weeklyProgress,
-      courseProgress,
-      achievements,
-      learningStreak
+      profile
+    });
+
+    // Calculate learning streak visualization
+    const learningStreak = calculateLearningStreakVisualization(completedLessons, streakData.currentStreak);
+
+    // Calculate performance metrics
+    const performanceMetrics = {
+      actualProgress: totalCourses > 0 ? courseProgress.reduce((sum, c) => sum + c.progress, 0) / totalCourses : 0,
+      expectedProgress: calculateExpectedProgress(enrollments),
+      passRate: totalQuizzes > 0 ? Math.round((passedQuizzes / totalQuizzes) * 100) : 0,
+      completionRate: totalCourses > 0 ? Math.round((completedCourses / totalCourses) * 100) : 0
     };
 
-    res.json(analyticsData);
+    // Calculate profile completeness
+    const profileCompleteness = calculateProfileCompleteness(profile);
+
+    // Calculate category performance
+    const categoryPerformance = calculateCategoryPerformance(courseProgress);
+
+    const analyticsData = {
+      overview: {
+        totalEnrollments: totalCourses,
+        completedCourses,
+        activeEnrollments: activeCourses,
+        certificatesEarned: completedCourses, // Assume completed courses have certificates
+        totalTimeSpent: Math.round(studyTime),
+        averageProgress: performanceMetrics.actualProgress
+      },
+      gamification: {
+        totalPoints: profile?.gamification?.totalPoints || experiencePoints,
+        level: currentLevel,
+        badges: profile?.gamification?.badges || [],
+        streaks: {
+          currentLoginStreak: streakData.currentStreak,
+          longestLoginStreak: streakData.longestStreak,
+          currentLearningStreak: streakData.currentStreak,
+          longestLearningStreak: streakData.longestStreak
+        }
+      },
+      progressOverTime: weeklyProgress.map(w => ({
+        date: w.date,
+        progress: w.progress,
+        timeSpent: w.timeSpent,
+        activitiesCompleted: w.activitiesCompleted
+      })),
+      categoryProgress: categoryPerformance.map(cat => ({
+        category: cat.category,
+        progress: cat.progress,
+        totalCourses: cat.totalCourses,
+        completedCourses: cat.completedCourses,
+        timeSpent: cat.timeSpent
+      })),
+      profileCompleteness: profileCompleteness
+    };
+
+    success(res, analyticsData, 'Student analytics retrieved successfully');
   } catch (error) {
-    console.error('Error getting student analytics:', error);
+    logger.error('Error getting student analytics:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+// Helper functions for analytics calculations
+function calculateLearningStreak(completedLessons: any[]): { currentStreak: number; longestStreak: number } {
+  if (completedLessons.length === 0) {
+    return { currentStreak: 0, longestStreak: 0 };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const dailyCompletions = new Map<string, number>();
+  
+  // Group completions by date
+  completedLessons.forEach(lesson => {
+    const date = new Date(lesson.createdAt);
+    date.setHours(0, 0, 0, 0);
+    const dateKey = date.toISOString().split('T')[0];
+    dailyCompletions.set(dateKey, (dailyCompletions.get(dateKey) || 0) + 1);
+  });
+  
+  // Calculate current streak
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let tempStreak = 0;
+  
+  for (let i = 0; i < 365; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateKey = date.toISOString().split('T')[0];
+    
+    if (dailyCompletions.has(dateKey)) {
+      if (i <= currentStreak) {
+        currentStreak = i + 1;
+      }
+      tempStreak++;
+    } else {
+      if (tempStreak > longestStreak) {
+        longestStreak = tempStreak;
+      }
+      tempStreak = 0;
+    }
+  }
+  
+  longestStreak = Math.max(longestStreak, tempStreak);
+  
+  return { currentStreak, longestStreak };
+}
+
+function calculateWeeklyProgress(completedLessons: any[], quizResults: any[]): any[] {
+  const weeklyData = [];
+  
+  for (let i = 0; i < 7; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - i));
+    date.setHours(0, 0, 0, 0);
+    
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    const dayLessons = completedLessons.filter(lesson => {
+      const lessonDate = new Date(lesson.createdAt);
+      return lessonDate >= date && lessonDate < nextDay;
+    });
+    
+    const dayQuizzes = quizResults.filter(quiz => {
+      const quizDate = new Date(quiz.createdAt);
+      return quizDate >= date && quizDate < nextDay;
+    });
+    
+    weeklyData.push({
+      date: date.toISOString().split('T')[0],
+      lessonsCompleted: dayLessons.length,
+      timeSpent: dayLessons.reduce((sum, l) => sum + (l.timeSpent || 30), 0),
+      quizzesPassed: dayQuizzes.filter(q => q.score >= 70).length
+    });
+  }
+  
+  return weeklyData;
+}
+
+function calculateAchievements(data: any): any[] {
+  const achievements = [
+    {
+      id: '1',
+      title: 'First Steps',
+      description: 'Complete your first lesson',
+      icon: '🎯',
+      earnedAt: data.completedLessons > 0 ? new Date().toISOString() : '',
+      progress: Math.min(data.completedLessons, 1),
+      maxProgress: 1
+    },
+    {
+      id: '2',
+      title: 'Quiz Master',
+      description: 'Pass 10 quizzes with 90%+ score',
+      icon: '🏆',
+      earnedAt: data.quizResults.filter((q: any) => q.score >= 90).length >= 10 ? new Date().toISOString() : '',
+      progress: Math.min(data.quizResults.filter((q: any) => q.score >= 90).length, 10),
+      maxProgress: 10
+    },
+    {
+      id: '3',
+      title: 'Streak Champion',
+      description: 'Maintain a 7-day learning streak',
+      icon: '🔥',
+      earnedAt: data.streakDays >= 7 ? new Date().toISOString() : '',
+      progress: Math.min(data.streakDays, 7),
+      maxProgress: 7
+    },
+    {
+      id: '4',
+      title: 'Course Completer',
+      description: 'Complete your first course',
+      icon: '🎓',
+      earnedAt: data.completedCourses > 0 ? new Date().toISOString() : '',
+      progress: Math.min(data.completedCourses, 1),
+      maxProgress: 1
+    },
+    {
+      id: '5',
+      title: 'Time Warrior',
+      description: 'Study for 50 hours total',
+      icon: '⏰',
+      earnedAt: data.studyTime >= 3000 ? new Date().toISOString() : '',
+      progress: Math.min(data.studyTime, 3000),
+      maxProgress: 3000
+    },
+    {
+      id: '6',
+      title: 'Perfect Score',
+      description: 'Get 100% on 3 quizzes',
+      icon: '⭐',
+      earnedAt: data.quizResults.filter((q: any) => q.score === 100).length >= 3 ? new Date().toISOString() : '',
+      progress: Math.min(data.quizResults.filter((q: any) => q.score === 100).length, 3),
+      maxProgress: 3
+    },
+    {
+      id: '7',
+      title: 'Explorer',
+      description: 'Enroll in 5 different courses',
+      icon: '🌟',
+      earnedAt: data.totalCourses >= 5 ? new Date().toISOString() : '',
+      progress: Math.min(data.totalCourses, 5),
+      maxProgress: 5
+    }
+  ];
+  
+  return achievements;
+}
+
+function calculateLearningStreakVisualization(completedLessons: any[], currentStreak: number): any[] {
+  const streakData = [];
+  
+  for (let i = 0; i < 30; i++) {
+    const date = new Date();
+    date.setDate(date.getDate() - (29 - i));
+    date.setHours(0, 0, 0, 0);
+    
+    const nextDay = new Date(date);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    const dayLessons = completedLessons.filter(lesson => {
+      const lessonDate = new Date(lesson.createdAt);
+      return lessonDate >= date && lessonDate < nextDay;
+    });
+    
+    const isActive = i >= (30 - currentStreak);
+    
+    streakData.push({
+      date: date.toISOString().split('T')[0],
+      active: isActive && dayLessons.length > 0,
+      lessons: dayLessons.length,
+      minutes: dayLessons.reduce((sum, l) => sum + (l.timeSpent || 30), 0)
+    });
+  }
+  
+  return streakData;
+}
+
+function calculateExpectedProgress(enrollments: any[]): number {
+  if (enrollments.length === 0) return 0;
+  
+  const avgDaysEnrolled = enrollments.reduce((sum, e) => {
+    const daysEnrolled = Math.floor((Date.now() - new Date(e.enrollmentDate).getTime()) / (1000 * 60 * 60 * 24));
+    return sum + daysEnrolled;
+  }, 0) / enrollments.length;
+  
+  // Assume courses should be completed in 60 days
+  const expectedCourseCompletionDays = 60;
+  return Math.min((avgDaysEnrolled / expectedCourseCompletionDays) * 100, 100);
+}
+
+function calculateProfileCompleteness(profile: any): number {
+  if (!profile) return 0;
+  
+  let completeness = 0;
+  const fields = [
+    profile.firstName,
+    profile.lastName,
+    profile.email,
+    profile.phoneNumber,
+    profile.bio,
+    profile.profilePicture,
+    profile.learningGoals,
+    profile.preferences
+  ];
+  
+  fields.forEach(field => {
+    if (field) completeness += 12.5;
+  });
+  
+  return Math.round(completeness);
+}
+
+function calculateCategoryPerformance(courseProgress: any[]): any[] {
+  const categoryMap = new Map<string, { progress: number; count: number; timeSpent: number }>();
+  
+  courseProgress.forEach(course => {
+    const category = course.category || 'General';
+    const existing = categoryMap.get(category) || { progress: 0, count: 0, timeSpent: 0 };
+    
+    existing.progress += course.progress;
+    existing.count += 1;
+    existing.timeSpent += course.timeSpent || 0;
+    
+    categoryMap.set(category, existing);
+  });
+  
+  return Array.from(categoryMap.entries()).map(([category, data]) => ({
+    category,
+    averageProgress: Math.round(data.progress / data.count),
+    totalCourses: data.count,
+    totalTimeSpent: data.timeSpent
+  }));
+}
 
 // Get course-specific analytics
 export const getCourseAnalytics = async (req: AuthenticatedRequest, res: Response) => {

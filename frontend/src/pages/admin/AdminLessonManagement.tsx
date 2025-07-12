@@ -30,7 +30,8 @@ import {
   Video,
   Image,
   Link,
-  CheckCircle
+  CheckCircle,
+  HelpCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextUtils';
@@ -605,6 +606,14 @@ const AdminLessonManagement = () => {
                               onClick={() => handleViewLesson(lesson)}
                             >
                               <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/admin/lessons/${lesson.id}/quiz`)}
+                              title="Manage Quiz"
+                            >
+                              <HelpCircle className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="outline"

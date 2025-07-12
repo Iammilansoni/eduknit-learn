@@ -23,6 +23,9 @@ import courseRoutes from './routes/course';
 import lessonRoutes from './routes/lessons';
 import integrationRoutes from './routes/integrations';
 import analyticsRoutes from './routes/analytics';
+import quizRoutes from './routes/quiz';
+import dashboardRoutes from './routes/dashboard';
+import courseProgressRoutes from './routes/courseProgress';
 import swaggerUi from 'swagger-ui-express';
 import { specs } from './config/swagger';
 import ScheduledJobsService from './services/scheduledJobsService';
@@ -120,6 +123,9 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/courses', courseContentRoutes);
 app.use('/api/course', courseRoutes);
 app.use('/api/lessons', lessonRoutes);
+app.use('/api/quiz', quizRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/course-progress', courseProgressRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

@@ -4,8 +4,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
-import { userApi as userAPI } from '@/services/userApi';
+import { authApi } from '@/services/authApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import { AxiosError } from 'axios';
 
 const VerificationPage = () => {
   const [verificationState, setVerificationState] = useState<'loading' | 'success' | 'error'>('loading');
@@ -39,30 +40,23 @@ const VerificationPage = () => {
         verificationAttempted.current = true;
         
         // Call the verification API
-        const response = await userAPI.verifyEmail(token);
-        console.log('Verification response status:', response.success);
+        await authApi.verifyEmail(token);
+        console.log('Email verification successful!');
         
-        if (response.success) {
-          setVerificationState('success');
-          console.log('Email verification successful!');
-          // Don't auto-reload or auto-redirect - let user control navigation
-        } else {
-          console.log('Verification failed:', response.message);
-          setVerificationState('error');
-          setErrorMessage(response.message || 'Email verification failed.');
-        }
+        setVerificationState('success');
+        console.log('Email verification successful!');
+        // Don't auto-reload or auto-redirect - let user control navigation
       } catch (error) {
         console.error('Verification error:', error);
         setVerificationState('error');
         if (error instanceof Error) {
           setErrorMessage(error.message);
-        } else if (typeof error === 'object' && error !== null && 'response' in error) {
-          const axiosError = error as { response?: { data?: { message?: string; status?: number; code?: string } } };
-          const errorMessage = axiosError.response?.data?.message || 'An error occurred during email verification.';
-          const errorCode = axiosError.response?.data?.code;
+        } else if (error instanceof AxiosError) {
+          const errorMessage = error.response?.data?.message || 'An error occurred during email verification.';
+          const errorCode = error.response?.data?.code;
           
           // Handle different error scenarios based on backend response
-          if (axiosError.response?.status === 400) {
+          if (error.response?.status === 400) {
             if (errorCode === 'EXPIRED_TOKEN') {
               setErrorMessage('This verification link has expired. Please request a new verification email.');
             } else if (errorCode === 'INVALID_OR_USED_TOKEN') {
@@ -70,7 +64,7 @@ const VerificationPage = () => {
             } else {
               setErrorMessage(errorMessage);
             }
-          } else if (axiosError.response?.status === 200 && errorCode === 'ALREADY_VERIFIED_AND_SEEN') {
+          } else if (error.response?.status === 200 && errorCode === 'ALREADY_VERIFIED_AND_SEEN') {
             // Handle the case where user already verified and seen the message
             setVerificationState('success');
             setErrorMessage(''); // Clear any error message

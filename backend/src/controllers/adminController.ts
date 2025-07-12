@@ -50,23 +50,28 @@ export const createCourse = async (req: AuthenticatedRequest, res: Response): Pr
       return validationError(res, 'Title, description, category, and instructor are required');
     }
 
-    // Create new programme
+    // Validate minimum values for totalModules, totalLessons, and estimatedDuration
+    const finalTotalModules = totalModules || 1;
+    const finalTotalLessons = totalLessons || 1;
+    const finalEstimatedDuration = estimatedDuration || 1;
+
+    // Create new programme - let the pre-save middleware handle slug generation
     const programme = new Programme({
       title,
       description,
       category,
       instructor,
-      duration,
-      timeframe,
+      duration: duration || '2-3 hours/week',
+      timeframe: timeframe || '4-6 weeks',
       level: level || 'BEGINNER',
       price: price || 0,
       currency: currency || 'USD',
-      overview,
+      overview: overview || description,
       skills: skills || [],
       prerequisites: prerequisites || [],
-      totalModules: totalModules || 0,
-      totalLessons: totalLessons || 0,
-      estimatedDuration: estimatedDuration || 0,
+      totalModules: finalTotalModules,
+      totalLessons: finalTotalLessons,
+      estimatedDuration: finalEstimatedDuration,
       durationDays: durationDays || 30,
       certificateAwarded: certificateAwarded !== false,
       imageUrl,
@@ -80,8 +85,20 @@ export const createCourse = async (req: AuthenticatedRequest, res: Response): Pr
     logger.info(`Course created: ${title} by admin ${adminId}`);
 
     created(res, programme, 'Course created successfully');
-  } catch (error) {
+  } catch (error: any) {
     logger.error('Create course error:', error);
+    
+    // Handle validation errors specifically
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+      return validationError(res, `Validation error: ${validationErrors.join(', ')}`);
+    }
+    
+    // Handle duplicate key errors (e.g., slug conflicts)
+    if (error.code === 11000) {
+      return validationError(res, 'A course with this title already exists. Please choose a different title.');
+    }
+    
     serverError(res, 'Failed to create course');
   }
 };
@@ -210,32 +227,67 @@ export const updateCourse = async (req: AuthenticatedRequest, res: Response): Pr
 export const deleteCourse = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const { force } = req.query; // Allow force deletion via query parameter
     const adminId = req.user?.id;
+
+    console.log('Delete course request:', { id, adminId, force, params: req.params });
+
+    // Validate ObjectId format
+    if (!Types.ObjectId.isValid(id)) {
+      console.log('Invalid ObjectId format:', id);
+      return validationError(res, 'Invalid course ID format');
+    }
 
     const course = await Programme.findById(id);
     if (!course) {
+      console.log('Course not found:', id);
       return notFound(res, 'Course not found');
     }
 
+    console.log('Course found for deletion:', { id: course._id, title: course.title });
+
     // Check if course has enrollments
     const enrollmentCount = await Enrollment.countDocuments({ programmeId: id });
+    console.log('Enrollment count:', enrollmentCount);
     
     if (enrollmentCount > 0) {
-      return validationError(res, `Cannot delete course with ${enrollmentCount} active enrollments`);
+      if (force === 'true') {
+        console.log('Force deleting enrollments...');
+        await Enrollment.deleteMany({ programmeId: id });
+        console.log(`Deleted ${enrollmentCount} enrollments`);
+      } else {
+        console.log('Cannot delete course with enrollments:', enrollmentCount);
+        return validationError(res, `Cannot delete course with ${enrollmentCount} active enrollments. Use force=true to delete anyway.`);
+      }
     }
 
     // Delete related modules and lessons
-    await ProgrammeModule.deleteMany({ programmeId: id });
-    await ProgrammeLesson.deleteMany({ programmeId: id });
+    console.log('Deleting related modules and lessons...');
+    const deletedModules = await ProgrammeModule.deleteMany({ programmeId: id });
+    const deletedLessons = await ProgrammeLesson.deleteMany({ programmeId: id });
+    console.log(`Deleted ${deletedModules.deletedCount} modules and ${deletedLessons.deletedCount} lessons`);
     
     // Delete the course
+    console.log('Deleting course...');
     await Programme.findByIdAndDelete(id);
 
-    logger.info(`Course deleted: ${course.title} by admin ${adminId}`);
+    logger.info(`Course deleted: ${course.title} by admin ${adminId} ${force === 'true' ? '(forced)' : ''}`);
+    console.log('Course deletion successful');
 
     success(res, null, 'Course deleted successfully');
-  } catch (error) {
+  } catch (error: any) {
+    console.log('Delete course error:', error);
     logger.error('Delete course error:', error);
+    
+    // Handle specific error types
+    if (error.name === 'CastError') {
+      return validationError(res, 'Invalid course ID format');
+    }
+    
+    if (error.name === 'ValidationError') {
+      return validationError(res, 'Validation error occurred during deletion');
+    }
+    
     serverError(res, 'Failed to delete course');
   }
 };

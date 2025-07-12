@@ -703,6 +703,102 @@ class AnalyticsService {
   }
 
   /**
+   * Get quiz analytics for a student
+   */
+  async getQuizAnalytics(studentId: string): Promise<{
+    quizzesTaken: number;
+    averageScore: number;
+    passRate: number;
+    bestScore: number;
+    bestStreak: number;
+    recentQuizzes: Array<{
+      id: string;
+      lessonTitle: string;
+      score: number;
+      percentage: number;
+      completedAt: Date;
+      passed: boolean;
+    }>;
+  }> {
+    try {
+      logger.info(`Getting quiz analytics for student: ${studentId}`);
+      
+      const quizResults = await QuizResult.find({ studentId })
+        .populate('lessonId', 'title')
+        .sort({ completedAt: -1 })
+        .lean();
+
+      logger.info(`Found ${quizResults.length} quiz results for student ${studentId}`);
+      
+      const quizzesTaken = quizResults.length;
+      
+      if (quizzesTaken === 0) {
+        logger.info(`No quiz results found for student ${studentId}`);
+        return {
+          quizzesTaken: 0,
+          averageScore: 0,
+          passRate: 0,
+          bestScore: 0,
+          bestStreak: 0,
+          recentQuizzes: []
+        };
+      }
+
+      // Calculate average score
+      const totalScore = quizResults.reduce((sum, quiz) => sum + (quiz.percentage || 0), 0);
+      const averageScore = Math.round(totalScore / quizzesTaken);
+
+      // Calculate pass rate (assuming 70% is passing)
+      const passThreshold = 70;
+      const passedQuizzes = quizResults.filter(quiz => (quiz.percentage || 0) >= passThreshold);
+      const passRate = Math.round((passedQuizzes.length / quizzesTaken) * 100);
+
+      // Find best score
+      const bestScore = Math.max(...quizResults.map(quiz => quiz.percentage || 0));
+
+      // Calculate best streak (consecutive passes)
+      let bestStreak = 0;
+      let currentStreak = 0;
+      
+      // Sort by completion date (oldest first) to calculate streak properly
+      const sortedQuizzes = [...quizResults].sort((a, b) => 
+        new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()
+      );
+      
+      for (const quiz of sortedQuizzes) {
+        if ((quiz.percentage || 0) >= passThreshold) {
+          currentStreak++;
+          bestStreak = Math.max(bestStreak, currentStreak);
+        } else {
+          currentStreak = 0;
+        }
+      }
+
+      // Get recent quizzes (last 10)
+      const recentQuizzes = quizResults.slice(0, 10).map(quiz => ({
+        id: quiz._id.toString(),
+        lessonTitle: (quiz.lessonId as any)?.title || 'Unknown Lesson',
+        score: quiz.score || 0,
+        percentage: quiz.percentage || 0,
+        completedAt: quiz.completedAt,
+        passed: (quiz.percentage || 0) >= passThreshold
+      }));
+
+      return {
+        quizzesTaken,
+        averageScore,
+        passRate,
+        bestScore,
+        bestStreak,
+        recentQuizzes
+      };
+    } catch (error) {
+      logger.error('Error getting quiz analytics:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Update learning streak in student profile
    */
   private async updateLearningStreak(studentId: string): Promise<void> {

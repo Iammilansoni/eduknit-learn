@@ -72,6 +72,13 @@ export const authApi = {
       return response.data.data!;
     } catch (error) {
       const axiosError = error as AxiosError<ApiResponse>;
+      
+      // Handle specific error cases
+      if (axiosError.response?.status === 409) {
+        const errorMessage = axiosError.response?.data?.message || 'User already exists';
+        throw new Error(errorMessage);
+      }
+      
       throw new Error(axiosError.response?.data?.message || axiosError.message || 'Registration failed');
     }
   },
@@ -185,7 +192,9 @@ export const authApi = {
   // Verify email
   async verifyEmail(token: string): Promise<void> {
     try {
-      const response = await api.post<ApiResponse>('/auth/verify-email', { token });
+      const response = await api.get<ApiResponse>('/auth/verify-email', { 
+        params: { token } 
+      });
       if (!response.data.success) {
         throw new Error(response.data.message || 'Email verification failed');
       }

@@ -149,7 +149,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (axios.isAxiosError(error)) {
         isEmailConflict = error.response?.status === 409;
-        if (error.message) {
+        if (error.response?.data?.message) {
+          message = error.response.data.message;
+        } else if (error.message) {
           message = error.message;
         }
       } else if (error instanceof Error) {

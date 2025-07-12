@@ -42,8 +42,12 @@ export const getGeneralProgress = async (req: AuthRequest, res: Response) => {
         // Get lesson completions
         const lessonCompletions = await LessonCompletion.find({ userId }).lean();
 
-        // Get quiz results
-        const quizResults = await QuizResult.find({ studentId: userId }).lean();
+        // Get quiz results from both models
+        const QuizAttempt = (await import('../models/QuizAttempt')).default;
+        const [quizResults, quizAttempts] = await Promise.all([
+            QuizResult.find({ studentId: userId }).lean(),
+            QuizAttempt.find({ studentId: userId, status: 'COMPLETED' }).lean()
+        ]);
 
         // Calculate overall metrics
         const totalEnrollments = enrollments.length;
@@ -53,10 +57,13 @@ export const getGeneralProgress = async (req: AuthRequest, res: Response) => {
         const totalLessonsCompleted = lessonCompletions.length;
         const totalTimeSpent = enrollments.reduce((sum, e) => sum + (e.progress.timeSpent || 0), 0);
         
-        const totalQuizzesTaken = quizResults.length;
-        const averageQuizScore = totalQuizzesTaken > 0 
-            ? quizResults.reduce((sum, q) => sum + (q.percentage || 0), 0) / totalQuizzesTaken 
-            : 0;
+        const totalQuizzesTaken = quizResults.length + quizAttempts.length;
+        let averageQuizScore = 0;
+        if (totalQuizzesTaken > 0) {
+            const quizResultsScore = quizResults.reduce((sum, q) => sum + (q.percentage || 0), 0);
+            const quizAttemptsScore = quizAttempts.reduce((sum, q) => sum + (q.percentage || 0), 0);
+            averageQuizScore = (quizResultsScore + quizAttemptsScore) / totalQuizzesTaken;
+        }
 
         // Calculate overall progress across all courses
         let overallProgress = 0;
@@ -73,9 +80,10 @@ export const getGeneralProgress = async (req: AuthRequest, res: Response) => {
             lc => new Date(lc.completedAt) >= sevenDaysAgo
         );
 
-        const recentQuizzes = quizResults.filter(
-            qr => new Date(qr.completedAt) >= sevenDaysAgo
-        );
+        const recentQuizzes = [
+            ...quizResults.filter(qr => qr.completedAt && new Date(qr.completedAt) >= sevenDaysAgo),
+            ...quizAttempts.filter(qa => qa.completedAt && new Date(qa.completedAt) >= sevenDaysAgo)
+        ];
 
         res.status(200).json({
             success: true,

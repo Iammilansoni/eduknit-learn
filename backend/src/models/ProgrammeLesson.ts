@@ -63,6 +63,29 @@ export interface IProgrammeLesson extends Document {
         type: 'PDF' | 'LINK' | 'VIDEO' | 'DOCUMENT';
     }[];
     isActive: boolean;
+    quiz?: {
+        questions: {
+            id: string;
+            question: string;
+            type: 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'SHORT_ANSWER';
+            options?: string[];
+            correctAnswer: any;
+            points: number;
+        }[];
+        timeLimit?: number;
+        passingScore?: number;
+        settings?: {
+            timeLimit?: number;
+            passingScore?: number;
+            allowMultipleAttempts?: boolean;
+            showCorrectAnswers?: boolean;
+            showFeedback?: boolean;
+            maxAttempts?: number;
+            questionsRandomized?: boolean;
+            optionsRandomized?: boolean;
+        };
+    };
+    hasQuiz?: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -239,6 +262,57 @@ const ProgrammeLessonSchema = new Schema<IProgrammeLesson>(
             type: Boolean,
             default: true,
             index: true
+        },
+        quiz: {
+            questions: [{
+                id: {
+                    type: String,
+                    required: true
+                },
+                question: {
+                    type: String,
+                    required: true
+                },
+                type: {
+                    type: String,
+                    enum: ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'SHORT_ANSWER'],
+                    required: true
+                },
+                options: [{
+                    type: String
+                }],
+                correctAnswer: {
+                    type: Schema.Types.Mixed,
+                    required: true
+                },
+                points: {
+                    type: Number,
+                    required: true
+                }
+            }],
+            timeLimit: {
+                type: Number,
+                min: 0
+            },
+            passingScore: {
+                type: Number,
+                min: 0,
+                max: 100
+            },
+            settings: {
+                timeLimit: Number,
+                passingScore: Number,
+                allowMultipleAttempts: Boolean,
+                showCorrectAnswers: Boolean,
+                showFeedback: Boolean,
+                maxAttempts: Number,
+                questionsRandomized: Boolean,
+                optionsRandomized: Boolean
+            }
+        },
+        hasQuiz: {
+            type: Boolean,
+            default: false
         }
     },
     {

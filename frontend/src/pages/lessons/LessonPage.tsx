@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft,
@@ -24,11 +25,14 @@ import {
   Video,
   BookOpen,
   Download,
-  ExternalLink
+  ExternalLink,
+  Trophy,
+  Target
 } from 'lucide-react';
 import { courseContentApi as courseContentAPI } from '@/services/courseContentApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
 import LessonContentRenderer, { LessonContent as ContentItem } from '@/components/lesson/LessonContentRenderer';
+import api from '@/services/api';
 
 interface InteractiveElement {
   title?: string;
@@ -114,6 +118,16 @@ const LessonPage: React.FC = () => {
   const [timeSpent, setTimeSpent] = useState(0);
   const [bookmarkedItems, setBookmarkedItems] = useState<string[]>([]);
   const [contentNotes, setContentNotes] = useState<Record<string, string>>({});
+  const [showQuizDialog, setShowQuizDialog] = useState(false);
+  const [hasAvailableQuiz, setHasAvailableQuiz] = useState(false);
+  const [quizCheckLoading, setQuizCheckLoading] = useState(false);
+  const [quizDebugInfo, setQuizDebugInfo] = useState<{
+    hasQuiz: boolean;
+    questionCount: number;
+    quizSettings: { timeLimit?: number; passingScore: number } | null;
+    error?: string;
+  } | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(process.env.NODE_ENV === 'development');
 
   // Fetch lesson content
   const { data: lessonData, isLoading, error } = useQuery({
@@ -141,7 +155,7 @@ const LessonPage: React.FC = () => {
     },
   });
 
-  const lesson = lessonData?.data as LessonData;
+  const lesson = lessonData?.data as unknown as LessonData;
 
   // Initialize state from lesson data
   useEffect(() => {
@@ -168,6 +182,56 @@ const LessonPage: React.FC = () => {
 
     return () => clearInterval(saveInterval);
   }, [lesson, timeSpent, currentProgress, notes, isBookmarked, updateProgressMutation]);
+
+  // Check if lesson has an available quiz
+  useEffect(() => {
+    const checkForQuiz = async () => {
+      if (!lessonId) return;
+      
+      console.log('🔍 Checking for quiz for lesson:', lessonId);
+      setQuizCheckLoading(true);
+      
+      try {
+        // First try the debug endpoint to see raw data
+        console.log('📊 Calling debug endpoint...');
+        const debugResponse = await api.get(`/quiz/debug/lesson/${lessonId}`);
+        console.log('🔧 Debug response:', debugResponse.data);
+        
+        if (debugResponse.data.success) {
+          setQuizDebugInfo({
+            hasQuiz: debugResponse.data.debug.hasQuiz,
+            questionCount: debugResponse.data.debug.questionCount,
+            quizSettings: debugResponse.data.debug.quizSettings
+          });
+        }
+        
+        // Then try the normal quiz endpoint
+        console.log('📊 Calling quiz endpoint...');
+        const response = await api.get(`/quiz/lesson/${lessonId}`);
+        
+        console.log('📊 Quiz API response:', response.data);
+        
+        if (response.data.success && response.data.data.questions.length > 0) {
+          setHasAvailableQuiz(true);
+          console.log('✅ Quiz found for lesson:', lessonId, 'Questions:', response.data.data.questions.length);
+        } else {
+          console.log('❌ No quiz questions found for lesson:', lessonId);
+          setHasAvailableQuiz(false);
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+        console.log('❌ Error fetching quiz for lesson:', lessonId, errorData || errorMessage);
+        
+        setQuizDebugInfo(prev => prev ? { ...prev, error: errorMessage } : null);
+        setHasAvailableQuiz(false);
+      } finally {
+        setQuizCheckLoading(false);
+      }
+    };
+    
+    checkForQuiz();
+  }, [lessonId]);
 
   const handleProgressUpdate = (progress: number) => {
     setCurrentProgress(progress);
@@ -201,10 +265,15 @@ const LessonPage: React.FC = () => {
       bookmarked: isBookmarked,
     });
     
-    toast({
-      title: 'Lesson Completed!',
-      description: 'Great job! You can now move to the next lesson.',
-    });
+    // Check if lesson has a quiz and show the dialog
+    if (hasAvailableQuiz) {
+      setShowQuizDialog(true);
+    } else {
+      toast({
+        title: 'Lesson Completed!',
+        description: 'Great job! You can now move to the next lesson.',
+      });
+    }
   };
 
   const handleBookmarkToggle = () => {
@@ -454,6 +523,30 @@ const LessonPage: React.FC = () => {
                       Mark as Complete
                     </Button>
                   )}
+                  
+                  {/* Quiz Button */}
+                  {quizCheckLoading && (
+                    <Button variant="outline" disabled className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 animate-spin" />
+                      Checking for quiz...
+                    </Button>
+                  )}
+                  {!quizCheckLoading && hasAvailableQuiz && (
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate(`/lessons/${lessonId}/quiz`)}
+                      className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                    >
+                      <Target className="h-4 w-4" />
+                      Take Quiz
+                    </Button>
+                  )}
+                  {!quizCheckLoading && !hasAvailableQuiz && (
+                    <div className="text-sm text-gray-500 flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      No quiz available
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -527,6 +620,121 @@ const LessonPage: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Debug Panel (Development Only) */}
+      {showDebugPanel && (
+        <Card className="mt-4 border-dashed border-orange-300 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="text-sm text-orange-800 flex items-center gap-2">
+              🔧 Quiz Debug Info (Development Mode)
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDebugPanel(!showDebugPanel)}
+                className="text-orange-600"
+              >
+                {showDebugPanel ? 'Hide' : 'Show'}
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div><strong>Lesson ID:</strong> {lessonId}</div>
+              <div><strong>Quiz Check Loading:</strong> {quizCheckLoading ? 'Yes' : 'No'}</div>
+              <div><strong>Has Available Quiz:</strong> {hasAvailableQuiz ? '✅ Yes' : '❌ No'}</div>
+              
+              {quizDebugInfo && (
+                <div className="mt-3 p-3 bg-white rounded border">
+                  <div className="font-medium text-orange-800 mb-2">Debug API Response:</div>
+                  <div><strong>Raw Quiz Found:</strong> {quizDebugInfo.hasQuiz ? '✅ Yes' : '❌ No'}</div>
+                  <div><strong>Question Count:</strong> {quizDebugInfo.questionCount}</div>
+                  {quizDebugInfo.quizSettings && (
+                    <div>
+                      <strong>Settings:</strong> 
+                      Passing Score: {quizDebugInfo.quizSettings.passingScore}%
+                      {quizDebugInfo.quizSettings.timeLimit && `, Time Limit: ${quizDebugInfo.quizSettings.timeLimit}min`}
+                    </div>
+                  )}
+                  {quizDebugInfo.error && (
+                    <div className="text-red-600"><strong>Error:</strong> {quizDebugInfo.error}</div>
+                  )}
+                </div>
+              )}
+              
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <div className="font-medium text-yellow-800 mb-2">🔧 Quick Fixes:</div>
+                <ol className="text-xs space-y-1 text-yellow-700">
+                  <li>1. Go to Admin → Lesson Management</li>
+                  <li>2. Find this lesson and click quiz button (🅠)</li>
+                  <li>3. Create a new quiz with questions</li>
+                  <li>4. Save and refresh this page</li>
+                </ol>
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(`/admin/lessons/${lessonId}/quiz`, '_blank')}
+                    className="text-xs"
+                  >
+                    Open Quiz Admin
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="mt-3 text-xs text-orange-600">
+                💡 Check browser console for detailed API logs
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Quiz Completion Dialog */}
+      <Dialog open={showQuizDialog} onOpenChange={setShowQuizDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              Lesson Completed!
+            </DialogTitle>
+            <DialogDescription>
+              Congratulations! You've completed this lesson. Would you like to test your knowledge with a quiz?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2 py-4">
+            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full">
+              <Target className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <h4 className="font-medium">Quiz Available</h4>
+              <p className="text-sm text-gray-600">Test your understanding of this lesson</p>
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowQuizDialog(false);
+                toast({
+                  title: 'Lesson Completed!',
+                  description: 'You can take the quiz later from the lesson page.',
+                });
+              }}
+            >
+              Skip Quiz
+            </Button>
+            <Button
+              onClick={() => {
+                setShowQuizDialog(false);
+                navigate(`/lessons/${lessonId}/quiz`);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Take Quiz
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

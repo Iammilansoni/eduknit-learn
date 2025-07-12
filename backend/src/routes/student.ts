@@ -1,5 +1,6 @@
 import express from 'express';
 import { body } from 'express-validator';
+import { autoSyncLessonCompletion, autoSyncEnrollmentStats } from '../middleware/realtimeSync';
 import {
   getStudentDashboard,
   getStudentProfile,
@@ -16,7 +17,8 @@ import {
   upload,
   enrollInProgram,
   markLessonCompleted,
-  updateLessonProgress
+  updateLessonProgress,
+  updateEnrollmentStatus
 } from '../controllers/studentController';
 import { 
   createJWTMiddleware, 
@@ -107,6 +109,15 @@ router.get('/enrollments', requireStudent, getStudentEnrollments);
 router.get('/enrollments/:enrollmentId', requireStudent, getEnrollmentDetails);
 
 /**
+ * @route   PUT /api/student/enrollment/:enrollmentId/status
+ * @desc    Update enrollment status
+ * @access  Student only
+ */
+router.put('/enrollment/:enrollmentId/status', requireStudent, [
+  body('status').notEmpty().isIn(['ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED', 'EXPIRED']).withMessage('Invalid enrollment status')
+], updateEnrollmentStatus);
+
+/**
  * @route   GET /api/student/enrolled-programs
  * @desc    Get enrolled programs for profile management with detailed information
  * @access  Student only
@@ -133,21 +144,21 @@ router.post('/activity', requireStudent, [
  * @desc    Enroll in a program
  * @access  Authenticated Student
  */
-router.post('/enroll', enrollInProgram);
+router.post('/enroll', autoSyncEnrollmentStats, enrollInProgram);
 
 /**
  * @route   POST /api/student/lesson/complete
  * @desc    Mark lesson as completed
  * @access  Authenticated Student
  */
-router.post('/lesson/complete', markLessonCompleted);
+router.post('/lesson/complete', autoSyncLessonCompletion, markLessonCompleted);
 
 /**
  * @route   PUT /api/student/lesson/progress
  * @desc    Update lesson progress
  * @access  Authenticated Student
  */
-router.put('/lesson/progress', updateLessonProgress);
+router.put('/lesson/progress', autoSyncLessonCompletion, updateLessonProgress);
 
 /**
  * @route   GET /api/student/analytics

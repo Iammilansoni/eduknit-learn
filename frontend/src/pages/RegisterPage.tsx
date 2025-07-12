@@ -124,8 +124,11 @@ const RegisterPage = () => {
         });
       }, 1000);
     } catch (error: unknown) {
+      console.log('Caught error in RegisterPage:', error);
+      
       // Check if it's an email conflict error
       if (axios.isAxiosError(error)) {
+        console.log('Axios error detected, status:', error.response?.status);
         if (error.response?.status === 409) {
           // This is expected - show UI message and redirect to login page
           setShowEmailExistsMessage(true);
@@ -136,14 +139,45 @@ const RegisterPage = () => {
           // Redirect to login page after a short delay
           setTimeout(() => {
             navigate('/login');
-          }, 2000);
+          }, 3000); // Increased to 3 seconds to give user time to read
           return;
         }
       }
       
-      // Log only unexpected errors
-      console.error('Unexpected registration error:', error);
-      // Error handling is done in AuthContext
+      // Also check if the error message indicates a conflict (from AuthContext)
+      if (error instanceof Error && 
+          (error.message.includes('User already exists') || 
+           error.message.includes('Email already registered') || 
+           error.message.includes('Username already taken'))) {
+        console.log('Conflict error detected from message:', error.message);
+        setShowEmailExistsMessage(true);
+        
+        // Clear the form to prepare for potential retry or redirect
+        form.reset();
+        
+        // Redirect to login page after a short delay
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+        return;
+      }
+      
+      // For other errors, show a toast with the specific error message
+      if (error instanceof Error) {
+        toast({
+          title: "Registration Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Registration Failed", 
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+        });
+      }
+      
+      console.error('Registration error:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -227,12 +261,14 @@ const RegisterPage = () => {
                   </div>
                   <div className="ml-3">
                     <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                      Email Already Registered
+                      Account Already Exists
                     </h3>
-                    <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                      <p>This email is already registered. Redirecting to login page...</p>
+                    <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
+                      <p>This email address or username is already registered with EduKnit Learn.</p>
+                      <p>If this is your account, please log in instead.</p>
+                      <p className="font-medium">Redirecting to login page in a few seconds...</p>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-3 flex gap-2">
                       <Button 
                         size="sm" 
                         variant="outline" 
@@ -240,6 +276,17 @@ const RegisterPage = () => {
                         onClick={() => navigate('/login')}
                       >
                         Go to Login
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="border-yellow-300 text-yellow-800 hover:bg-yellow-100 dark:border-yellow-600 dark:text-yellow-200 dark:hover:bg-yellow-800"
+                        onClick={() => {
+                          setShowEmailExistsMessage(false);
+                          form.reset();
+                        }}
+                      >
+                        Try Different Email
                       </Button>
                     </div>
                   </div>
