@@ -38,6 +38,8 @@ import {
 } from 'lucide-react';
 import { courseContentApi as courseContentAPI } from '@/services/courseContentApi';
 import { useAuth } from '@/contexts/AuthContextUtils';
+import Hls from 'hls.js';
+import { disableRightClick, overlayStyle, preventCopyPaste, preventKeyboardShortcuts, disableTextSelection, applyGlobalProtection, removeGlobalProtection } from '@/utils/contentProtection';
 
 interface QuizQuestion {
   id: string;
@@ -151,6 +153,14 @@ const EnhancedLessonViewer: React.FC = () => {
   });
 
   const lesson = lessonData?.data as LessonContent;
+
+  // Apply global protection when component mounts
+  useEffect(() => {
+    applyGlobalProtection();
+    return () => {
+      removeGlobalProtection();
+    };
+  }, []);
 
   // Initialize notes and bookmark status
   useEffect(() => {
@@ -433,11 +443,20 @@ const EnhancedLessonViewer: React.FC = () => {
       );
     }
 
-    // For direct video files, use HTML5 video element
+    // For direct video files, use HTML5 video element with HLS support
     return (
-      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+      <div className="relative aspect-video bg-black rounded-lg overflow-hidden" onContextMenu={disableRightClick}>
+        <div style={overlayStyle}></div>
         <video
-          ref={videoRef}
+          ref={videoRef => {
+            if (videoRef) {
+              if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(embedUrl);
+                hls.attachMedia(videoRef);
+              }
+            }
+          }}
           className="w-full h-full"
           controls
           controlsList="nodownload"
@@ -511,8 +530,12 @@ const EnhancedLessonViewer: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content with Copy Protection */}
       <div 
+        onCopy={preventCopyPaste} 
+        onContextMenu={disableRightClick}
+        onKeyDown={preventKeyboardShortcuts}
+        style={{...disableTextSelection}}
         className="prose max-w-none prose-lg"
         dangerouslySetInnerHTML={{ __html: lesson?.content || '' }}
       />

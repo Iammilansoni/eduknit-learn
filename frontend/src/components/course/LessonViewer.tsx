@@ -9,6 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import Hls from 'hls.js';
+import { disableRightClick, overlayStyle, preventCopyPaste, preventKeyboardShortcuts, disableTextSelection, applyGlobalProtection, removeGlobalProtection } from '@/utils/contentProtection';
 import { 
   Play, 
   Pause, 
@@ -163,6 +165,14 @@ const LessonViewer: React.FC = () => {
 
   const lesson = lessonData?.data as LessonContent;
 
+  // Apply global protection when component mounts
+  useEffect(() => {
+    applyGlobalProtection();
+    return () => {
+      removeGlobalProtection();
+    };
+  }, []);
+
   // Quiz timer effect
   useEffect(() => {
     if (showQuiz && lesson?.quiz?.timeLimit && quizTimeRemaining !== null) {
@@ -284,50 +294,65 @@ const LessonViewer: React.FC = () => {
             </div>
           )}
 
-          {/* Video Player */}
+          {/* Video Player with HLS.js and Protection */}
           {lesson.type === 'VIDEO' && lesson.videoUrl && (
-            <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              {isEmbeddableVideo(lesson.videoUrl) ? (
-                <iframe
-                  src={getVideoEmbedUrl(lesson.videoUrl)}
-                  className="w-full h-full"
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  title="Video Player"
-                  onLoad={() => setVideoError(null)}
-                  onError={() => setVideoError('Failed to load embedded video')}
-                />
-              ) : (
-                <video
-                  className="w-full h-full"
-                  controls
-                  onTimeUpdate={(e) => handleVideoProgress(e.currentTarget.currentTime)}
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  onError={() => setVideoError('Failed to load video file')}
-                  onLoadStart={() => setVideoError(null)}
-                >
-                  <source src={lesson.videoUrl} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
-              )}
-              
-              {/* Video Error Display */}
-              {videoError && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 text-white">
-                  <div className="text-center">
-                    <p className="mb-2">{videoError}</p>
-                    <p className="text-sm text-gray-300">Video URL: {lesson.videoUrl}</p>
+            <div style={{ position: 'relative' }} onContextMenu={disableRightClick}>
+              <div style={overlayStyle}></div>
+              <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                {isEmbeddableVideo(lesson.videoUrl) ? (
+                  <iframe
+                    src={getVideoEmbedUrl(lesson.videoUrl)}
+                    className="w-full h-full"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    title="Video Player"
+                    onLoad={() => setVideoError(null)}
+                    onError={() => setVideoError('Failed to load embedded video')}
+                  />
+                ) : (
+                  <video
+                    ref={videoRef => {
+                      if (videoRef && Hls.isSupported()) {
+                        const hls = new Hls();
+                        hls.loadSource(lesson.videoUrl!);
+                        hls.attachMedia(videoRef);
+                      }
+                    }}
+                    className="w-full h-full"
+                    controls
+                    controlsList="nodownload"
+                    onTimeUpdate={(e) => handleVideoProgress(e.currentTarget.currentTime)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onError={() => setVideoError('Failed to load video file')}
+                    onLoadStart={() => setVideoError(null)}
+                  >
+                    <source src={lesson.videoUrl} type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                )}
+                
+                {/* Video Error Display */}
+                {videoError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75 text-white">
+                    <div className="text-center">
+                      <p className="mb-2">{videoError}</p>
+                      <p className="text-sm text-gray-300">Video URL: {lesson.videoUrl}</p>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
-          {/* Text Content */}
+          {/* Text Content with Copy Protection */}
           {lesson.type === 'TEXT' && (
             <div 
+              onCopy={preventCopyPaste} 
+              onContextMenu={disableRightClick}
+              onKeyDown={preventKeyboardShortcuts}
+              style={{...disableTextSelection}}
               className="prose max-w-none"
               dangerouslySetInnerHTML={{ __html: lesson.content }}
             />

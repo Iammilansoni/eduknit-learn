@@ -21,6 +21,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { disableRightClick, overlayStyle, preventCopyPaste, preventKeyboardShortcuts, disableTextSelection, applyGlobalProtection, removeGlobalProtection } from '@/utils/contentProtection';
 
 export interface LessonContent {
   id: string;
@@ -74,6 +75,14 @@ const LessonContentRenderer: React.FC<LessonContentRendererProps> = ({
 
   const [readingProgress, setReadingProgress] = React.useState(0);
   const [startTime] = React.useState(Date.now());
+
+  // Apply global protection when component mounts
+  React.useEffect(() => {
+    applyGlobalProtection();
+    return () => {
+      removeGlobalProtection();
+    };
+  }, []);
 
   // Track reading progress
   React.useEffect(() => {
@@ -152,6 +161,10 @@ const LessonContentRenderer: React.FC<LessonContentRendererProps> = ({
       )}
       <div 
         className="text-gray-700 leading-relaxed"
+        onCopy={preventCopyPaste}
+        onContextMenu={disableRightClick}
+        onKeyDown={preventKeyboardShortcuts}
+        style={{...disableTextSelection}}
         dangerouslySetInnerHTML={{ __html: item.content }}
       />
     </div>
@@ -167,7 +180,8 @@ const LessonContentRenderer: React.FC<LessonContentRendererProps> = ({
     };
 
     return (
-      <div className="relative group">
+      <div className="relative group" onContextMenu={disableRightClick}>
+        <div style={overlayStyle}></div>
         {item.title && (
           <h3 className="text-xl font-semibold mb-4 text-gray-900">{item.title}</h3>
         )}
@@ -175,6 +189,7 @@ const LessonContentRenderer: React.FC<LessonContentRendererProps> = ({
           <video
             className="w-full h-auto"
             controls
+            controlsList="nodownload"
             poster={item.metadata?.poster}
             onPlay={() => handleVideoPlay(item.id)}
             onPause={() => handleVideoPause(item.id)}
@@ -183,6 +198,7 @@ const LessonContentRenderer: React.FC<LessonContentRendererProps> = ({
               handleVideoTimeUpdate(item.id, video.currentTime, video.duration);
             }}
             muted={videoState.isMuted}
+            onDragStart={(e) => e.preventDefault()}
           >
             <source src={item.metadata?.url || item.content} type="video/mp4" />
             Your browser does not support the video tag.
@@ -242,15 +258,18 @@ const LessonContentRenderer: React.FC<LessonContentRendererProps> = ({
       {item.title && (
         <h3 className="text-xl font-semibold mb-4 text-gray-900">{item.title}</h3>
       )}
-      <div className="relative">
+      <div className="relative" onContextMenu={disableRightClick}>
+        <div style={overlayStyle}></div>
         <img
           src={item.metadata?.url || item.content}
           alt={item.metadata?.alt || item.title || 'Lesson image'}
           className="w-full h-auto rounded-lg shadow-md"
           style={{
             maxWidth: item.metadata?.width ? `${item.metadata.width}px` : '100%',
-            maxHeight: item.metadata?.height ? `${item.metadata.height}px` : 'auto'
+            maxHeight: item.metadata?.height ? `${item.metadata.height}px` : 'auto',
+            ...disableTextSelection
           }}
+          onDragStart={(e) => e.preventDefault()}
         />
         {item.metadata?.caption && (
           <p className="text-sm text-gray-600 mt-2 italic">{item.metadata.caption}</p>
