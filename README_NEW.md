@@ -411,23 +411,14 @@ cd backend
 # Run the complete system setup (creates courses, modules, lessons)
 node final-lms-setup.js
 
-# User Management Commands
-# Clear existing users from database (if needed)
-npx ts-node src/scripts/manageUsers.ts clear-confirmed
-
-# Check existing users in database
-npx ts-node src/scripts/manageUsers.ts list
-
 # Create demo admin and student accounts
 node create-demo-credentials-new.js
-# OR use npm script
-npm run create-admin
 ```
 
 **This will create:**
 - ✅ 6 complete courses with modules and lessons
 - ✅ Sample analytics data
-- ✅ Demo user accounts (after clearing existing ones if needed)
+- ✅ Demo user accounts
 - ✅ Course enrollment data
 
 ### **👤 Step 6: Demo User Accounts**
@@ -436,18 +427,13 @@ After running the setup scripts, you can login with these demo accounts:
 
 #### **🔑 Admin Account**
 - **Email:** `admin@eduknit.com`
-- **Password:** `Admin123!`
+- **Password:** `admin123`
 - **Access:** Full system administration, course management, user management, analytics
 
-#### **👨‍💼 User Account**
-- **Email:** `user@eduknit.com`
-- **Password:** `User123!`
-- **Access:** Standard user features, course enrollment, progress tracking
-
-#### **👁️ Visitor Account**
-- **Email:** `visitor@eduknit.com`
-- **Password:** `Visitor123!`
-- **Access:** Limited visitor access, course browsing
+#### **🎓 Student Account**
+- **Email:** `student@test.com`
+- **Password:** `student123`
+- **Access:** Student dashboard, course enrollment, progress tracking, quiz taking
 
 ### **🧪 Step 7: Verify Installation**
 
@@ -469,11 +455,10 @@ curl http://localhost:5000/api/courses
 #### **✅ Frontend Verification**
 
 1. **Open your browser** and navigate to `http://localhost:5173`
-2. **Login with admin credentials** (`admin@eduknit.com` / `Admin123!`) to access the admin dashboard
+2. **Login with admin credentials** to access the admin dashboard
 3. **Test course management** by creating or editing a course
-4. **Login with user credentials** (`user@eduknit.com` / `User123!`) to access the user dashboard
+4. **Login with student credentials** to access the student dashboard
 5. **Test course enrollment** and progress tracking
-6. **Login with visitor credentials** (`visitor@eduknit.com` / `Visitor123!`) to test visitor access
 
 #### **✅ Complete System Test**
 
@@ -659,11 +644,7 @@ npm run test:coverage # Generate test coverage report
 npm run create-admin    # Create admin user
 npm run create-demo     # Create demo users
 npm run validate-jwt    # Validate JWT configuration
-
-# User Management Scripts
-npx ts-node src/scripts/manageUsers.ts clear-confirmed  # Delete all users from database
-npx ts-node src/scripts/manageUsers.ts list            # List all users in database
-node create-demo-credentials-new.js                    # Create demo credentials
+npm run manage-users    # User management CLI
 ```
 
 #### **Frontend Scripts**
